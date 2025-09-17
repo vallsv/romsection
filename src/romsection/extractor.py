@@ -143,24 +143,17 @@ class Extractor(Qt.QWidget):
             return
         sprite = items[0].data(Qt.Qt.UserRole)
 
-        try:
-            data = self.rom.extract_lz77(sprite)
-        except Exception as e:
-            logging.error("Error while decompressing sprite", exc_info=True)
+        data = self._readSprite(sprite)
+        if data is None:
             return
 
         self._shapeList.clear()
         shapes = guessed_shapes(data.size)
-        if len(shapes) == 0:
-            shapes.append((data.size, 1))
-
         for shape in shapes:
             item = Qt.QListWidgetItem()
             item.setText(f"{shape[0]} × {shape[1]}")
             item.setData(Qt.Qt.UserRole, shape)
             self._shapeList.addItem(item)
-
-        data.shape = sprite.shape or shapes[0]
 
         selectedShapeItem = self._findItemFromShape(data.shape)
         if selectedShapeItem is not None:
@@ -190,13 +183,31 @@ class Extractor(Qt.QWidget):
         if len(items) != 1:
             return
         shape = items[0].data(Qt.Qt.UserRole)
+        sprite.shape = shape
 
+        data = self._readSprite(sprite)
+        if data is None:
+            return
+
+        self._view.setImage(data)
+
+    def _guessFirstShape(self, data):
+        # FIXME: Guess something closer to a square
+        return 1, data.size
+
+    def _readSprite(self, sprite):
         try:
             data = self.rom.extract_lz77(sprite)
         except Exception as e:
             logging.error("Error while decompressing sprite", exc_info=True)
-            return
+            return None
 
-        sprite.shape = shape
-        data.shape = shape
-        self._view.setImage(data)
+        if sprite.shape is not None:
+            try:
+                data.shape = sprite.shape
+            except Exception:
+                data.shape = self._guessFirstShape(data)
+        else:
+            data.shape = self._guessFirstShape(data)
+
+        return data
