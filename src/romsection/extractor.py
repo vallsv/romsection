@@ -21,9 +21,11 @@ class MemMapping:
         offset,
         nb_pixels,
         shape: tuple[int, int] | None = None,
-        color_mode: ColorMode | None = None
+        color_mode: ColorMode | None = None,
+        length: int | None = None,
     ):
         self.offset = offset
+        self.length = length
         self.nb_pixels = nb_pixels
         self.shape = shape
         self.color_mode: ColorMode | None = color_mode
@@ -34,6 +36,8 @@ class MemMapping:
             description["shape"] = list(self.shape)
         if self.color_mode is not None:
             description["color_mode"] = self.color_mode.name
+        if self.length is not None:
+            description["length"] = self.length
         return description
 
     @staticmethod
@@ -42,6 +46,7 @@ class MemMapping:
         nb_pixels = description.get("nb_pixels")
         shape = description.get("shape")
         color_mode = description.get("color_mode")
+        length = description.get("length")
         if shape is not None:
             shape = tuple(shape)
         if color_mode is not None:
@@ -50,7 +55,8 @@ class MemMapping:
             offset,
             nb_pixels,
             shape=shape,
-            color_mode=color_mode
+            color_mode=color_mode,
+            length=length,
         )
 
 
@@ -88,10 +94,19 @@ class GBAFile:
             offset += 1
             f.seek(offset, os.SEEK_SET)
 
+    def extract_raw(self, mapping: MemMapping) -> bytes:
+        f = self._f
+        f.seek(mapping.offset, os.SEEK_SET)
+        data = f.read(mapping.length)
+        return data
+
     def extract_lz77(self, sprite: MemMapping):
         f = self._f
         f.seek(sprite.offset, os.SEEK_SET)
-        return decompress_lz77(f)
+        result = decompress_lz77(f)
+        offset_end = f.tell()
+        sprite.length = offset_end - sprite.offset
+        return result
 
 
 class Extractor(Qt.QWidget):
@@ -117,6 +132,8 @@ class Extractor(Qt.QWidget):
 
         self._spriteList = Qt.QListWidget(self)
         self._spriteList.itemSelectionChanged.connect(self._selectSprite)
+        self._spriteList.setContextMenuPolicy(Qt.Qt.CustomContextMenu)
+        self._spriteList.customContextMenuRequested.connect(self._showSpriteContextMenu)
 
         self._colorModeList = Qt.QListWidget(self)
         self._colorModeList.itemSelectionChanged.connect(self._selectColorMode)
@@ -150,6 +167,45 @@ class Extractor(Qt.QWidget):
     def _scanAll(self):
         self.rom.scan_all()
         self._syncSpriteList()
+
+    def _showSpriteContextMenu(self, pos: Qt.QPoint):
+        globalPos = self._spriteList.mapToGlobal(pos)
+        menu = Qt.QMenu(self)
+
+        saveRaw = Qt.QAction(menu)
+        saveRaw.setText("Save as raw...")
+        saveRaw.triggered.connect(self._saveMemMapAsRaw)
+        menu.addAction(saveRaw)
+
+        menu.exec(globalPos)
+
+    def _saveMemMapAsRaw(self):
+        dialog = Qt.QFileDialog(self)
+        dialog.setWindowTitle("Save as RAW")
+        dialog.setModal(True)
+        filters = [
+            "RAW files (*.raw)",
+            "All files (*)",
+        ]
+        dialog.setNameFilters(filters)
+        dialog.setFileMode(Qt.QFileDialog.AnyFile)
+        dialog.setAcceptMode(Qt.QFileDialog.AcceptSave)
+
+        items = self._spriteList.selectedItems()
+        if len(items) != 1:
+            return
+        sprite = items[0].data(Qt.Qt.UserRole)
+
+        dialog.selectFile(f"{sprite.offset:08X}+{sprite.length}.raw")
+        result = dialog.exec_()
+        if not result:
+            return
+
+        data = self.rom.extract_raw(sprite)
+
+        filename = dialog.selectedFiles()[0]
+        with open(filename, "wb") as f:
+            f.write(data)
 
     def _loadInfo(self):
         with open(f"{self.rom.filename}.yml", "rt") as f:
