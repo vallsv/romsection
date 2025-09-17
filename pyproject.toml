@@ -1,0 +1,10 @@
+[project]
+name = "romsection"
+version = "1.0.0"
+
+dependencies = [
+  "pyyaml",
+  "pyqt5",
+  "numpy",
+  "silx",
+]
