@@ -2,9 +2,19 @@
 name = "romsection"
 version = "1.0.0"
 
+requires-python = ">= 3.10"
+
 dependencies = [
   "pyyaml",
   "pyqt5",
   "numpy",
   "silx",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black",
+    "pytest",
+    "mypy",
+    "PyQt5-stubs",
 ]
