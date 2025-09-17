@@ -2,23 +2,38 @@ import os
 import sys
 import logging
 import yaml
+import enum
 from PyQt5 import Qt
 
 from silx.gui.plot.ImageView import ImageView
 from .lz77 import decompress as decompress_lz77
-from .utils import prime_factors, guessed_shapes
+from .utils import prime_factors, guessed_shapes, convert_8bx1_to_4bx2
+
+
+class ColorMode(enum.Enum):
+    INDEXED_8BIT = enum.auto()
+    INDEXED_4BIT = enum.auto()
 
 
 class MemMapping:
-    def __init__(self, offset, nb_pixels, shape=None):
+    def __init__(
+        self,
+        offset,
+        nb_pixels,
+        shape: tuple[int, int] | None = None,
+        color_mode: ColorMode | None = None
+    ):
         self.offset = offset
         self.nb_pixels = nb_pixels
         self.shape = shape
+        self.color_mode: ColorMode | None = color_mode
 
     def to_dict(self):
         description = {"offset": self.offset, "nb_pixels": self.nb_pixels}
-        if self.shape is not ne:
+        if self.shape is not None:
             description["shape"] = list(self.shape)
+        if self.color_mode is not None:
+            description["color_mode"] = self.color_mode.name
         return description
 
     @staticmethod
@@ -26,14 +41,22 @@ class MemMapping:
         offset = description["offset"]
         nb_pixels = description.get("nb_pixels")
         shape = description.get("shape")
+        color_mode = description.get("color_mode")
         if shape is not None:
             shape = tuple(shape)
-        return MemMapping(offset, nb_pixels, shape)
+        if color_mode is not None:
+            color_mode = ColorMode[color_mode]
+        return MemMapping(
+            offset,
+            nb_pixels,
+            shape=shape,
+            color_mode=color_mode
+        )
 
 
 class GBAFile:
 
-    def __init__(self, filename):
+    def __init__(self, filename: str):
         self._filename = filename
         f = open(filename, "rb")
         self.offsets: list[MemMapping] = []
@@ -95,6 +118,17 @@ class Extractor(Qt.QWidget):
         self._spriteList = Qt.QListWidget(self)
         self._spriteList.itemSelectionChanged.connect(self._selectSprite)
 
+        self._colorModeList = Qt.QListWidget(self)
+        self._colorModeList.itemSelectionChanged.connect(self._selectColorMode)
+        item = Qt.QListWidgetItem()
+        item.setText(f"Indexed 256 colors")
+        item.setData(Qt.Qt.UserRole, ColorMode.INDEXED_8BIT)
+        self._colorModeList.addItem(item)
+        item = Qt.QListWidgetItem()
+        item.setText(f"Indexed 16 colors")
+        item.setData(Qt.Qt.UserRole, ColorMode.INDEXED_4BIT)
+        self._colorModeList.addItem(item)
+
         self._shapeList = Qt.QListWidget(self)
         self._shapeList.itemSelectionChanged.connect(self._selectShape)
 
@@ -103,10 +137,14 @@ class Extractor(Qt.QWidget):
         self._view.setSideHistogramDisplayed(False)
         self._view.getYAxis().setInverted(True)
 
+        spriteCodec = Qt.QVBoxLayout()
+        spriteCodec.addWidget(self._colorModeList)
+        spriteCodec.addWidget(self._shapeList)
+
         main = Qt.QHBoxLayout(self)
         main.addLayout(toolbar)
         main.addWidget(self._spriteList)
-        main.addWidget(self._shapeList)
+        main.addLayout(spriteCodec)
         main.addWidget(self._view)
 
     def _scanAll(self):
@@ -155,6 +193,17 @@ class Extractor(Qt.QWidget):
             item.setData(Qt.Qt.UserRole, shape)
             self._shapeList.addItem(item)
 
+        selectedColorModeItem = self._findItemFromColorMode(sprite.color_mode)
+        if selectedColorModeItem is not None:
+            old = self._colorModeList.blockSignals(True)
+            try:
+                i = self._colorModeList.row(selectedColorModeItem)
+                self._colorModeList.setCurrentRow(i)
+            finally:
+                self._colorModeList.blockSignals(old)
+        else:
+            self._colorModeList.setCurrentRow(-1)
+
         selectedShapeItem = self._findItemFromShape(data.shape)
         if selectedShapeItem is not None:
             old = self._shapeList.blockSignals(True)
@@ -163,8 +212,19 @@ class Extractor(Qt.QWidget):
                 self._shapeList.setCurrentRow(i)
             finally:
                 self._shapeList.blockSignals(old)
+        else:
+            self._shapeList.setCurrentRow(-1)
 
         self._view.setImage(data)
+
+    def _findItemFromColorMode(self, color_mode: ColorMode | None) -> Qt.QListWidgetItem | None:
+        if color_mode is None:
+            return None
+        for i in range(self._colorModeList.count()):
+            item = self._colorModeList.item(i)
+            if item.data(Qt.Qt.UserRole) == color_mode:
+                return item
+        return None
 
     def _findItemFromShape(self, shape) -> Qt.QListWidgetItem | None:
         for i in range(self._shapeList.count()):
@@ -172,6 +232,30 @@ class Extractor(Qt.QWidget):
             if item.data(Qt.Qt.UserRole) == shape:
                 return item
         return None
+
+    def _selectColorMode(self):
+        items = self._spriteList.selectedItems() 
+        if len(items) != 1:
+            return
+        sprite = items[0].data(Qt.Qt.UserRole)
+
+        items = self._colorModeList.selectedItems() 
+        if len(items) != 1:
+            return
+        colorMode = items[0].data(Qt.Qt.UserRole)
+        if sprite.color_mode == colorMode:
+            return
+
+        previousColorMode = sprite.color_mode
+        sprite.color_mode = colorMode
+
+        if sprite.shape is not None:
+            pnb = 1 if previousColorMode in [None, ColorMode.INDEXED_8BIT] else 2
+            nb = 1 if colorMode in [None, ColorMode.INDEXED_8BIT] else 2
+            if pnb != nb:
+                sprite.shape = sprite.shape[0], int(sprite.shape[1] * nb / pnb)
+
+        self._selectSprite()
 
     def _selectShape(self):
         items = self._spriteList.selectedItems() 
@@ -201,6 +285,9 @@ class Extractor(Qt.QWidget):
         except Exception as e:
             logging.error("Error while decompressing sprite", exc_info=True)
             return None
+
+        if sprite.color_mode == ColorMode.INDEXED_4BIT:
+            data = convert_8bx1_to_4bx2(data)
 
         if sprite.shape is not None:
             try:

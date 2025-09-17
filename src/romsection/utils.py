@@ -33,3 +33,16 @@ def guessed_shapes(size: int) -> list[tuple[int, int]]:
         width = int(numpy.prod([fa for fa, fi in zip(factors, filter) if fi]))
         result.append((width, size // width))
     return sorted(list(set(result)))
+
+
+def convert_8bx1_to_4bx2(data) -> numpy.ndarray:
+    """Convert each uint8 into value from bits 0..4 and 4..8.
+
+    An array with data `[0xAB, 0xCD]` will be converted into
+    an array `[0xB, 0xA, 0xD, 0xC]`.
+    """
+    assert data.dtype == numpy.uint8
+    lo = data & 0xF
+    hi = data >> 4
+    data = numpy.stack((lo, hi)).T.reshape(-1)
+    return numpy.ascontiguousarray(data)
