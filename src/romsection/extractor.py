@@ -332,6 +332,12 @@ class Extractor(Qt.QWidget):
         self._view.setImage(data)
 
     def _guessFirstShape(self, data):
+        if data.size == 240 * 160:
+            # LCD mode
+            return 160, 240
+        if data.size == 160 * 128:
+            # LCD mode
+            return 128, 160
         # FIXME: Guess something closer to a square
         return 1, data.size
 
