@@ -7,6 +7,11 @@ import enum
 from .lz77 import decompress as decompress_lz77
 
 
+class DataType(enum.Enum):
+    IMAGE = enum.auto()
+    PALETTE = enum.auto()
+
+
 class ColorMode(enum.Enum):
     INDEXED_8BIT = enum.auto()
     INDEXED_4BIT = enum.auto()
@@ -26,6 +31,7 @@ class MemoryMap:
         color_mode: ColorMode | None = None,
         length: int | None = None,
         pixel_order: PixelOrder | None = None,
+        data_type: DataType | None = None,
     ):
         self.offset = offset
         self.length = length
@@ -33,6 +39,7 @@ class MemoryMap:
         self.shape = shape
         self.color_mode: ColorMode | None = color_mode
         self.pixel_order: PixelOrder | None = pixel_order
+        self.data_type: DataType | None = data_type
 
     def to_dict(self):
         description = {"offset": self.offset, "nb_pixels": self.nb_pixels}
@@ -42,6 +49,8 @@ class MemoryMap:
             description["color_mode"] = self.color_mode.name
         if self.pixel_order is not None:
             description["pixel_order"] = self.pixel_order.name
+        if self.data_type is not None:
+            description["data_type"] = self.data_type.name
         if self.length is not None:
             description["length"] = self.length
         return description
@@ -53,6 +62,7 @@ class MemoryMap:
         shape = description.get("shape")
         color_mode = description.get("color_mode")
         pixel_order = description.get("pixel_order")
+        data_type = description.get("data_type")
         length = description.get("length")
         if shape is not None:
             shape = tuple(shape)
@@ -60,13 +70,16 @@ class MemoryMap:
             color_mode = ColorMode[color_mode]
         if pixel_order is not None:
             pixel_order = PixelOrder[pixel_order]
+        if data_type is not None:
+            data_type = DataType[data_type]
         return MemoryMap(
             offset,
             nb_pixels,
+            length=length,
             shape=shape,
             color_mode=color_mode,
             pixel_order=pixel_order,
-            length=length,
+            data_type=data_type,
         )
 
 
@@ -100,7 +113,12 @@ class GBAFile:
             except ValueError:
                 pass
             else:
-                self.offsets.append(MemoryMap(offset, data.size))
+                mem = MemoryMap(
+                    offset,
+                    data.size,
+                    data_type=data_type,
+                )
+                self.offsets.append(mem)
             offset += 1
             f.seek(offset, os.SEEK_SET)
 
