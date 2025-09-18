@@ -68,3 +68,20 @@ def convert_to_tiled_8x8(data: numpy.ndarray) -> numpy.ndarray:
     mapping.shape = data.shape[0] // 8, data.shape[1] // 8, 8, 8
     mapping = numpy.swapaxes(mapping, 1, 2)
     return numpy.ascontiguousarray(mapping).reshape(data.shape)
+
+
+def convert_16bx1_to_5bx3(data: numpy.ndarray) -> numpy.ndarray:
+    """
+    Convert each uint16 into value from bits 0..5, 5..10, 10..15.
+
+    THe last remaining bit is lost.
+
+    An array with data `[0b0111111111011000]` will be converted into
+    an array `[0x1F, 0x1E, 0x18]`.
+    """
+    assert data.dtype == numpy.uint16
+    lo = data & 0x1F
+    mid = (data >> 5) & 0x1F
+    hi = (data >> 10) & 0x1F
+    data = numpy.stack((lo, mid, hi), dtype=numpy.uint8).T.reshape(-1)
+    return numpy.ascontiguousarray(data)
