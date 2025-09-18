@@ -21,6 +21,8 @@ class Extractor(Qt.QWidget):
         toolbar = Qt.QVBoxLayout()
         self.rom = None
 
+        self._lastBySize: dict[int, MemoryMap] = {}
+
         scanAll = Qt.QPushButton(self)
         scanAll.clicked.connect(self._scanAll)
         scanAll.setText("Scan All")
@@ -136,6 +138,15 @@ class Extractor(Qt.QWidget):
         mem = self._memList.selectedMemoryMap()
         if mem is None:
             return
+
+        if mem.color_mode is None and mem.shape is None and mem.pixel_order is None:
+            previous = self._lastBySize.get(mem.nb_pixels)
+            if previous is not None:
+                mem.color_mode = previous.color_mode
+                mem.shape = previous.shape
+                mem.pixel_order = previous.pixel_order
+
+        self._lastBySize[mem.nb_pixels] = mem
 
         try:
             old = self._colorModeList.blockSignals(True)
