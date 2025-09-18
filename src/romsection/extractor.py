@@ -134,6 +134,7 @@ class Extractor(Qt.QWidget):
         self._spriteList.itemSelectionChanged.connect(self._selectSprite)
         self._spriteList.setContextMenuPolicy(Qt.Qt.CustomContextMenu)
         self._spriteList.customContextMenuRequested.connect(self._showSpriteContextMenu)
+        self._spriteList.setUniformItemSizes(True)
 
         self._colorModeList = Qt.QListWidget(self)
         self._colorModeList.itemSelectionChanged.connect(self._selectColorMode)
@@ -145,9 +146,14 @@ class Extractor(Qt.QWidget):
         item.setText(f"Indexed 16 colors")
         item.setData(Qt.Qt.UserRole, ColorMode.INDEXED_4BIT)
         self._colorModeList.addItem(item)
+        self._colorModeList.setUniformItemSizes(True)
+        self._colorModeList.setVerticalScrollBarPolicy(Qt.Qt.ScrollBarAlwaysOff)
+        self._colorModeList.setSizePolicy(Qt.QSizePolicy.Expanding, Qt.QSizePolicy.Maximum)
+        self._colorModeList.setSizeAdjustPolicy(Qt.QListWidget.AdjustToContents)
 
         self._shapeList = Qt.QListWidget(self)
         self._shapeList.itemSelectionChanged.connect(self._selectShape)
+        self._shapeList.setUniformItemSizes(True)
 
         self._view = ImageView(self, backend="gl")
         self._view.setKeepDataAspectRatio(True)
@@ -157,6 +163,7 @@ class Extractor(Qt.QWidget):
         spriteCodec = Qt.QVBoxLayout()
         spriteCodec.addWidget(self._colorModeList)
         spriteCodec.addWidget(self._shapeList)
+        spriteCodec.setStretchFactor(self._shapeList, 1)
 
         main = Qt.QHBoxLayout(self)
         main.addLayout(toolbar)
