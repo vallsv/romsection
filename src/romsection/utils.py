@@ -35,8 +35,9 @@ def guessed_shapes(size: int) -> list[tuple[int, int]]:
     return sorted(list(set(result)))
 
 
-def convert_8bx1_to_4bx2(data) -> numpy.ndarray:
-    """Convert each uint8 into value from bits 0..4 and 4..8.
+def convert_8bx1_to_4bx2(data: numpy.ndarray) -> numpy.ndarray:
+    """
+    Convert each uint8 into value from bits 0..4 and 4..8.
 
     An array with data `[0xAB, 0xCD]` will be converted into
     an array `[0xB, 0xA, 0xD, 0xC]`.
@@ -46,3 +47,24 @@ def convert_8bx1_to_4bx2(data) -> numpy.ndarray:
     hi = data >> 4
     data = numpy.stack((lo, hi)).T.reshape(-1)
     return numpy.ascontiguousarray(data)
+
+
+def convert_to_tiled_8x8(data: numpy.ndarray) -> numpy.ndarray:
+    """
+    Convert data with contiguous tile data into contiguous displayable data.
+
+    An array which is not multiple of 64 raises a `ValueError`.
+
+    An array of width 8 stay unchanged.
+
+    An array of `[A1:A64, B1:B64]` of shape `-1, 16` is converted into
+    `[[A1:A8, B1:B8], [A8:A16, B8:B16]...]`.
+    """
+    if data.shape[0] % 8 != 0 or data.shape[1] % 8 != 0:
+        raise ValueError(f"Array is not multiple of tile size 8x8")
+    if data.shape[1] == 8:
+        return data
+    mapping = data.view()
+    mapping.shape = data.shape[0] // 8, data.shape[1] // 8, 8, 8
+    mapping = numpy.swapaxes(mapping, 1, 2)
+    return numpy.ascontiguousarray(mapping).reshape(data.shape)
