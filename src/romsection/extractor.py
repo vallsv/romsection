@@ -7,11 +7,12 @@ from PyQt5 import Qt
 
 from silx.gui.plot.ImageView import ImageView
 from .lz77 import decompress as decompress_lz77
-from .utils import prime_factors, guessed_shapes, convert_8bx1_to_4bx2
+from .utils import prime_factors, guessed_shapes, convert_8bx1_to_4bx2, convert_to_tiled_8x8
 from .widgets.memory_map_list import MemoryMapList
 from .widgets.color_mode_list import ColorModeList
 from .widgets.shape_list import ShapeList
-from .gba_file import GBAFile, MemoryMap, ColorMode
+from .widgets.pixel_order_list import PixelOrderList
+from .gba_file import GBAFile, MemoryMap, ColorMode, PixelOrder
 
 
 class Extractor(Qt.QWidget):
@@ -46,6 +47,9 @@ class Extractor(Qt.QWidget):
         self._shapeList = ShapeList(self)
         self._shapeList.itemSelectionChanged.connect(self._onShapeSelected)
 
+        self._pixelOrderList = PixelOrderList(self)
+        self._pixelOrderList.itemSelectionChanged.connect(self._onPixelOrderSelected)
+
         self._view = ImageView(self, backend="gl")
         self._view.setKeepDataAspectRatio(True)
         self._view.setSideHistogramDisplayed(False)
@@ -54,8 +58,10 @@ class Extractor(Qt.QWidget):
         spriteCodec = Qt.QVBoxLayout()
         spriteCodec.addWidget(self._colorModeList)
         spriteCodec.addWidget(self._shapeList)
+        spriteCodec.addWidget(self._pixelOrderList)
         spriteCodec.setStretchFactor(self._colorModeList, 0)
         spriteCodec.setStretchFactor(self._shapeList, 1)
+        spriteCodec.setStretchFactor(self._pixelOrderList, 0)
 
         main = Qt.QHBoxLayout(self)
         main.addLayout(toolbar)
@@ -90,17 +96,16 @@ class Extractor(Qt.QWidget):
         dialog.setFileMode(Qt.QFileDialog.AnyFile)
         dialog.setAcceptMode(Qt.QFileDialog.AcceptSave)
 
-        items = self._memList.selectedItems()
-        if len(items) != 1:
+        mem = self._memList.selectedMemoryMap()
+        if mem is None:
             return
-        sprite = items[0].data(Qt.Qt.UserRole)
 
-        dialog.selectFile(f"{sprite.offset:08X}+{sprite.length}.raw")
+        dialog.selectFile(f"{mem.offset:08X}+{mem.length}.raw")
         result = dialog.exec_()
         if not result:
             return
 
-        data = self.rom.extract_raw(sprite)
+        data = self.rom.extract_raw(mem)
 
         filename = dialog.selectedFiles()[0]
         with open(filename, "wb") as f:
@@ -137,6 +142,12 @@ class Extractor(Qt.QWidget):
             self._colorModeList.selectColorMode(mem.color_mode)
         finally:
             self._colorModeList.blockSignals(old)
+
+        try:
+            old = self._pixelOrderList.blockSignals(True)
+            self._pixelOrderList.selectPixelOrder(mem.pixel_order)
+        finally:
+            self._pixelOrderList.blockSignals(old)
 
         self._syncShapes()
 
@@ -191,12 +202,16 @@ class Extractor(Qt.QWidget):
 
         shape = self._shapeList.selectedShape()
         mem.shape = shape
+        self._updateImage()
 
-        data = self._readImage(mem)
-        if data is None:
+    def _onPixelOrderSelected(self):
+        mem = self._memList.selectedMemoryMap()
+        if mem is None:
             return
 
-        self._view.setImage(data)
+        pixelOrder = self._pixelOrderList.selectedPixelOrder()
+        mem.pixel_order = pixelOrder
+        self._updateImage()
 
     def _guessFirstShape(self, data):
         if data.size == 240 * 160:
@@ -207,6 +222,19 @@ class Extractor(Qt.QWidget):
             return 128, 160
         # FIXME: Guess something closer to a square
         return 1, data.size
+
+    def _updateImage(self):
+        mem = self._memList.selectedMemoryMap()
+        if mem is None:
+            return
+
+        data = self._readImage(mem)
+        if data is None:
+            self._view.setVisible(False)
+            return
+
+        self._view.setVisible(True)
+        self._view.setImage(data)
 
     def _readImage(self, mem: MemoryMap):
         try:
@@ -225,5 +253,10 @@ class Extractor(Qt.QWidget):
                 data.shape = self._guessFirstShape(data)
         else:
             data.shape = self._guessFirstShape(data)
+
+        if mem.pixel_order == PixelOrder.TILED_8X8:
+            if data.shape[0] % 8 != 0 or data.shape[1] % 8 != 0:
+                return None
+            data = convert_to_tiled_8x8(data)
 
         return data

@@ -12,6 +12,11 @@ class ColorMode(enum.Enum):
     INDEXED_4BIT = enum.auto()
 
 
+class PixelOrder(enum.Enum):
+    NORMAL = enum.auto()
+    TILED_8X8 = enum.auto()
+
+
 class MemoryMap:
     def __init__(
         self,
@@ -20,12 +25,14 @@ class MemoryMap:
         shape: tuple[int, int] | None = None,
         color_mode: ColorMode | None = None,
         length: int | None = None,
+        pixel_order: PixelOrder | None = None,
     ):
         self.offset = offset
         self.length = length
         self.nb_pixels = nb_pixels
         self.shape = shape
         self.color_mode: ColorMode | None = color_mode
+        self.pixel_order: PixelOrder | None = pixel_order
 
     def to_dict(self):
         description = {"offset": self.offset, "nb_pixels": self.nb_pixels}
@@ -33,6 +40,8 @@ class MemoryMap:
             description["shape"] = list(self.shape)
         if self.color_mode is not None:
             description["color_mode"] = self.color_mode.name
+        if self.pixel_order is not None:
+            description["pixel_order"] = self.pixel_order.name
         if self.length is not None:
             description["length"] = self.length
         return description
@@ -43,16 +52,20 @@ class MemoryMap:
         nb_pixels = description.get("nb_pixels")
         shape = description.get("shape")
         color_mode = description.get("color_mode")
+        pixel_order = description.get("pixel_order")
         length = description.get("length")
         if shape is not None:
             shape = tuple(shape)
         if color_mode is not None:
             color_mode = ColorMode[color_mode]
+        if pixel_order is not None:
+            pixel_order = PixelOrder[pixel_order]
         return MemoryMap(
             offset,
             nb_pixels,
             shape=shape,
             color_mode=color_mode,
+            pixel_order=pixel_order,
             length=length,
         )
 
