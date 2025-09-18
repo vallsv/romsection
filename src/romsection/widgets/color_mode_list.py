@@ -21,6 +21,9 @@ class ColorModeList(Qt.QListWidget):
         item.setData(Qt.Qt.UserRole, ColorMode.INDEXED_4BIT)
         self.addItem(item)
 
+        rect = self.visualItemRect(item)
+        self.setMaximumHeight(rect.height() * self.count() + 4)
+
     def selectedColorMode(self) -> ColorMode | None:
         items = self.selectedItems()
         if len(items) != 1:

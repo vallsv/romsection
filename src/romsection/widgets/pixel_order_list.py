@@ -21,6 +21,9 @@ class PixelOrderList(Qt.QListWidget):
         item.setData(Qt.Qt.UserRole, PixelOrder.TILED_8X8)
         self.addItem(item)
 
+        rect = self.visualItemRect(item)
+        self.setMaximumHeight(rect.height() * self.count() + 4)
+
     def selectedPixelOrder(self) -> PixelOrder | None:
         items = self.selectedItems()
         if len(items) != 1:
