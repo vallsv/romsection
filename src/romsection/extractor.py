@@ -18,11 +18,11 @@ from .gba_file import GBAFile, MemoryMap, ColorMode, PixelOrder
 class Extractor(Qt.QWidget):
     def __init__(self):
         Qt.QWidget.__init__(self)
-        toolbar = Qt.QVBoxLayout()
         self.rom = None
 
         self._lastBySize: dict[int, MemoryMap] = {}
 
+        toolbar = Qt.QVBoxLayout()
         scanAll = Qt.QPushButton(self)
         scanAll.clicked.connect(self._scanAll)
         scanAll.setText("Scan All")
@@ -37,6 +37,8 @@ class Extractor(Qt.QWidget):
         saveInfo.clicked.connect(self._saveInfo)
         saveInfo.setText("Save Info")
         toolbar.addWidget(saveInfo)
+
+        toolbar.addStretch(1)
 
         self._memList = MemoryMapList(self)
         self._memList.itemSelectionChanged.connect(self._onMemoryMapSelected)
