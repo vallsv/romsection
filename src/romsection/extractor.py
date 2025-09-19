@@ -276,7 +276,12 @@ class Extractor(Qt.QWidget):
             return
 
         self._view.setVisible(True)
-        self._view.setImage(data)
+        try:
+            self._view.setImage(data)
+        except Exception:
+            logging.error("Error while displaying data in silx plot", exc_info=True)
+            print(data.size, data.shape, data.dtype)
+            print(data)
 
     def _readImage(self, mem: MemoryMap):
         try:
