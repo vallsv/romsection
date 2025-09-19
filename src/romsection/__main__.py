@@ -10,6 +10,6 @@ print(f"ROM size:     {rom.size // 1000 // 1000:.2f}MB")
 
 app = Qt.QApplication([])
 win = Extractor()
-win.rom = rom
+win.setRom(rom)
 win.show()
 app.exec()

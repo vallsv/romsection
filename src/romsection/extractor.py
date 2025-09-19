@@ -18,9 +18,9 @@ from .gba_file import GBAFile, MemoryMap, ColorMode, PixelOrder, DataType
 
 
 class Extractor(Qt.QWidget):
-    def __init__(self):
-        Qt.QWidget.__init__(self)
-        self.rom = None
+    def __init__(self, parent: Qt.QWidget | None = None):
+        Qt.QWidget.__init__(self, parent)
+        self._rom: GBAFile | None = None
 
         self._lastBySize: dict[int, MemoryMap] = {}
 
@@ -80,8 +80,11 @@ class Extractor(Qt.QWidget):
         main.addLayout(spriteCodec)
         main.addWidget(self._view)
 
+    def setRom(self, rom: GBAFile):
+        self._rom = rom
+
     def _scanAll(self):
-        self.rom.scan_all()
+        self._rom.scan_all()
         self._syncSpriteList()
 
     def _showSpriteContextMenu(self, pos: Qt.QPoint):
@@ -116,31 +119,31 @@ class Extractor(Qt.QWidget):
         if not result:
             return
 
-        data = self.rom.extract_raw(mem)
+        data = self._rom.extract_raw(mem)
 
         filename = dialog.selectedFiles()[0]
         with open(filename, "wb") as f:
             f.write(data)
 
     def _loadInfo(self):
-        with open(f"{self.rom.filename}.yml", "rt") as f:
+        with open(f"{self._rom.filename}.yml", "rt") as f:
             data = yaml.safe_load(f)
-        self.rom.offsets.clear()
+        self._rom.offsets.clear()
         for m in data["mapping"]:
             mem = MemoryMap.from_dict(m)
-            self.rom.offsets.append(mem)
-        self._syncSpriteList()
+            self._rom.offsets.append(mem)
+        self._syncMemoryMapList()
 
-    def _syncSpriteList(self):
+    def _syncMemoryMapList(self):
         self._memList.clear()
-        for mem in self.rom.offsets:
+        for mem in self._rom.offsets:
             self._memList.addMemoryMap(mem)
 
     def _saveInfo(self):
         mapping = []
-        for mem in self.rom.offsets:
+        for mem in self._rom.offsets:
             mapping.append(mem.to_dict())
-        with open(f"{self.rom.filename}.yml", "wt") as f:
+        with open(f"{self._rom.filename}.yml", "wt") as f:
             yaml.dump({"mapping": mapping}, f)
 
     def _onMemoryMapSelected(self):
@@ -284,16 +287,16 @@ class Extractor(Qt.QWidget):
             print(data)
 
     def _readImage(self, mem: MemoryMap):
-        assert self.rom is not None
+        assert self._rom is not None
         if mem.data_type == DataType.PALETTE:
             try:
-                return self.rom.palette_data(mem)
+                return self._rom.palette_data(mem)
             except Exception as e:
                 logging.error("Error while reading palette data", exc_info=True)
                 return None
 
         try:
-            data = self.rom.extract_lz77(mem)
+            data = self._rom.extract_lz77(mem)
         except Exception as e:
             logging.error("Error while decompressing sprite", exc_info=True)
             return None
