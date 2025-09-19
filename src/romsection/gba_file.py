@@ -135,3 +135,29 @@ class GBAFile:
         offset_end = f.tell()
         mem.length = offset_end - mem.offset
         return result
+
+    def palette_data(self, mem: MemoryMap) -> numpy.ndarray:
+        """
+        Return palette data from a memory map.
+
+        Return a 3D array, indexed by palette index, then color index, then RGB components.
+
+        The RBG values are in range of 0..1.
+
+        Raises:
+            ValueError: If the memory can't be read as a palette.
+        """
+        data = self.extract_lz77(mem)
+
+        if mem.data_type != DataType.PALETTE:
+            raise ValueError(f"Memory map 0x{mem.offset:08X} is not a palette")
+
+        if data.size % 32 != 0:
+            raise ValueError(f"Memory map 0x{mem.offset:08X} don't have the right size")
+
+        nb = data.size // 32
+        data = data.view(numpy.uint16)
+        data = convert_16bx1_to_5bx3(data)
+        data = data / 0x1F
+        data.shape = nb, -1, 3
+        return data

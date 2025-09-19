@@ -284,21 +284,19 @@ class Extractor(Qt.QWidget):
             print(data)
 
     def _readImage(self, mem: MemoryMap):
+        assert self.rom is not None
+        if mem.data_type == DataType.PALETTE:
+            try:
+                return self.rom.palette_data(mem)
+            except Exception as e:
+                logging.error("Error while reading palette data", exc_info=True)
+                return None
+
         try:
             data = self.rom.extract_lz77(mem)
         except Exception as e:
             logging.error("Error while decompressing sprite", exc_info=True)
             return None
-
-        if mem.data_type == DataType.PALETTE:
-            if data.size % 32 == 0:
-                nb = data.size // 32
-                data = data.view(numpy.uint16)
-                data = convert_16bx1_to_5bx3(data)
-                data = data / 0x1F
-                data.shape = nb, -1, 3
-                return data
-            return data
 
         if mem.color_mode == ColorMode.INDEXED_4BIT:
             data = convert_8bx1_to_4bx2(data)
