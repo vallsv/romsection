@@ -8,7 +8,7 @@ from PyQt5 import Qt
 
 from silx.gui.plot.ImageView import ImageView
 from .lz77 import decompress as decompress_lz77
-from .utils import prime_factors, guessed_shapes, convert_8bx1_to_4bx2, convert_to_tiled_8x8, convert_16bx1_to_5bx3
+from .utils import prime_factors, guessed_shapes
 from .widgets.memory_map_list import MemoryMapList
 from .widgets.color_mode_list import ColorModeList
 from .widgets.shape_list import ShapeList
@@ -258,16 +258,6 @@ class Extractor(Qt.QWidget):
         mem.pixel_order = pixelOrder
         self._updateImage()
 
-    def _guessFirstShape(self, data):
-        if data.size == 240 * 160:
-            # LCD mode
-            return 160, 240
-        if data.size == 160 * 128:
-            # LCD mode
-            return 128, 160
-        # FIXME: Guess something closer to a square
-        return 1, data.size
-
     def _updateImage(self):
         mem = self._memList.selectedMemoryMap()
         if mem is None:
@@ -295,26 +285,11 @@ class Extractor(Qt.QWidget):
                 logging.error("Error while reading palette data", exc_info=True)
                 return None
 
-        try:
-            data = self._rom.extract_lz77(mem)
-        except Exception as e:
-            logging.error("Error while decompressing sprite", exc_info=True)
-            return None
-
-        if mem.color_mode == ColorMode.INDEXED_4BIT:
-            data = convert_8bx1_to_4bx2(data)
-
-        if mem.shape is not None:
+        if mem.data_type == DataType.IMAGE:
             try:
-                data.shape = mem.shape
-            except Exception:
-                data.shape = self._guessFirstShape(data)
-        else:
-            data.shape = self._guessFirstShape(data)
-
-        if mem.pixel_order == PixelOrder.TILED_8X8:
-            if data.shape[0] % 8 != 0 or data.shape[1] % 8 != 0:
+                return self._rom.image_data(mem)
+            except Exception as e:
+                logging.error("Error while reading palette data", exc_info=True)
                 return None
-            data = convert_to_tiled_8x8(data)
 
-        return data
+        return None

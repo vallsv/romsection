@@ -3,8 +3,10 @@ import sys
 import logging
 import yaml
 import enum
+import numpy
 
 from .lz77 import decompress as decompress_lz77
+from .utils import convert_16bx1_to_5bx3, convert_8bx1_to_4bx2, convert_to_tiled_8x8
 
 
 class DataType(enum.Enum):
@@ -160,4 +162,48 @@ class GBAFile:
         data = convert_16bx1_to_5bx3(data)
         data = data / 0x1F
         data.shape = nb, -1, 3
+        return data
+
+    def guess_first_shape(self, data):
+        if data.size == 240 * 160:
+            # LCD mode
+            return 160, 240
+        if data.size == 160 * 128:
+            # LCD mode
+            return 128, 160
+        # FIXME: Guess something closer to a square
+        return 1, data.size
+
+    def image_data(self, mem: MemoryMap) -> numpy.ndarray:
+        """
+        Return image data from a memory map.
+
+        It can return:
+        - A 2D array with indexed data as integer, shaped with axes Y, X
+        - A 3D array with 0..1 float, shaped with axes Y, X, RGB
+
+        Raises:
+            ValueError: If the memory can't be read.
+        """
+        if mem.data_type != DataType.IMAGE:
+            raise ValueError(f"Memory map 0x{mem.offset:08X} is not an image")
+
+        data = self.extract_lz77(mem)
+
+        if mem.color_mode == ColorMode.INDEXED_4BIT:
+            data = convert_8bx1_to_4bx2(data)
+
+        if mem.shape is not None:
+            try:
+                data.shape = mem.shape
+            except Exception:
+                data.shape = self.guess_first_shape(data)
+        else:
+            data.shape = self.guess_first_shape(data)
+
+        if mem.pixel_order == PixelOrder.TILED_8X8:
+            if data.shape[0] % 8 != 0 or data.shape[1] % 8 != 0:
+                raise ValueError(f"Memory map 0x{mem.offset:08X} use incompatible option: shape {data.shape} can't used with tiled 8x8")
+            data = convert_to_tiled_8x8(data)
+
         return data
