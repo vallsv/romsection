@@ -1,0 +1,72 @@
+import logging
+import numpy
+from PyQt5 import Qt
+
+from .object_list_model import ObjectListModel
+from ..gba_file import GBAFile, MemoryMap, DataType
+from ..utils import convert_16bx1_to_5bx3
+
+
+# FIXME: Have to be replaced by a lru map
+_palettePreview: dict[tuple[int], Qt.QIcon] = {}
+
+
+def createPaletteIcon(rom: GBAFile, mem: MemoryMap) -> Qt.QIcon:
+    """
+    Create an icon preview from a memory map.
+
+    This icons are cached into a global structure.
+    """
+    try:
+        data = rom.palette_data(mem)
+    except Exception:
+        logging.warning("Error while getting palette data", exc_info=True)
+        return Qt.QIcon()
+
+    # FIXME: Support Palette set
+    paletteData = data[0]
+
+    size = len(paletteData)
+    pixmap = Qt.QPixmap(size, size)
+    painter = Qt.QPainter(pixmap)
+    # FIXME: This could be done without loop
+    for i in range(size):
+        rgb = paletteData[i]
+        r, g, b = rgb[0], rgb[1], rgb[2]
+        painter.setPen(Qt.QColor.fromRgbF(r, g, b))
+        painter.drawPoint(Qt.QPoint(i, 0))
+
+    painter.drawPixmap(0, 1, size, size - 1, pixmap, 0, 0, size, 1)
+    painter.end()
+
+    return Qt.QIcon(pixmap)
+
+
+class PaletteListModel(ObjectListModel):
+    def __init__(self, parent: Qt.QObject | None = None):
+        ObjectListModel.__init__(self, parent=parent)
+        self._rom: GBAFile | None = None
+
+    def setRom(self, rom: GBAFile):
+        self._rom = rom
+
+    def data(self, index: Qt.QModelIndex, role: int = Qt.Qt.DisplayRole):
+        global _palettePreview
+        if role in (Qt.Qt.DisplayRole, Qt.Qt.EditRole):
+            if not index.isValid():
+                return ""
+            mem = self.object(index)
+            return f"Palette 0x{mem.offset:08X}"
+        if role == Qt.Qt.DecorationRole:
+            if not index.isValid():
+                return Qt.QIcon()
+            if self._rom is None:
+                return Qt.QIcon()
+            mem = self.object(index)
+            # FIXME: Use a hash from the mem state
+            icon = _palettePreview.get(mem.offset)
+            if icon is None:
+                icon = createPaletteIcon(self._rom, mem)
+                _palettePreview[mem.offset] = icon
+            return icon
+        return ObjectListModel.data(self, index, role)

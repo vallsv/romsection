@@ -14,6 +14,9 @@ from .widgets.color_mode_list import ColorModeList
 from .widgets.shape_list import ShapeList
 from .widgets.pixel_order_list import PixelOrderList
 from .widgets.data_type_list import DataTypeList
+from .widgets.palette_list_model import PaletteListModel
+from .widgets.combo_box import ComboBox
+from .widgets.palette_combo_box import PaletteComboBox
 from .gba_file import GBAFile, MemoryMap, ColorMode, PixelOrder, DataType
 
 
@@ -23,6 +26,7 @@ class Extractor(Qt.QWidget):
         self._rom: GBAFile | None = None
 
         self._lastBySize: dict[int, MemoryMap] = {}
+        self._paletteList =  PaletteListModel(self)
 
         toolbar = Qt.QVBoxLayout()
         scanAll = Qt.QPushButton(self)
@@ -50,6 +54,14 @@ class Extractor(Qt.QWidget):
         self._dataTypeList = DataTypeList(self)
         self._dataTypeList.itemSelectionChanged.connect(self._onDataTypeSelected)
 
+        self._paletteCombo = PaletteComboBox(self)
+        self._paletteCombo.setModel(self._paletteList)
+        self._paletteCombo.setMaxVisibleItems(15)
+        self._paletteCombo.setSizeAdjustPolicy(
+            Qt.QComboBox.AdjustToMinimumContentsLengthWithIcon
+        )
+        self._paletteCombo.currentIndexChanged.connect(self._onPaletteSelected)
+
         self._colorModeList = ColorModeList(self)
         self._colorModeList.itemSelectionChanged.connect(self._onColorModeSelected)
 
@@ -67,9 +79,11 @@ class Extractor(Qt.QWidget):
         spriteCodec = Qt.QVBoxLayout()
         spriteCodec.addWidget(self._dataTypeList)
         spriteCodec.addWidget(self._colorModeList)
+        spriteCodec.addWidget(self._paletteCombo)
         spriteCodec.addWidget(self._shapeList)
         spriteCodec.addWidget(self._pixelOrderList)
         spriteCodec.setStretchFactor(self._dataTypeList, 0)
+        spriteCodec.setStretchFactor(self._paletteCombo, 0)
         spriteCodec.setStretchFactor(self._colorModeList, 0)
         spriteCodec.setStretchFactor(self._shapeList, 1)
         spriteCodec.setStretchFactor(self._pixelOrderList, 0)
@@ -82,6 +96,7 @@ class Extractor(Qt.QWidget):
 
     def setRom(self, rom: GBAFile):
         self._rom = rom
+        self._paletteList.setRom(self._rom)
 
     def _scanAll(self):
         self._rom.scan_all()
@@ -138,6 +153,7 @@ class Extractor(Qt.QWidget):
         self._memList.clear()
         for mem in self._rom.offsets:
             self._memList.addMemoryMap(mem)
+        self._paletteList.setObjectList(self._rom.palettes())
 
     def _saveInfo(self):
         mapping = []
@@ -177,6 +193,20 @@ class Extractor(Qt.QWidget):
             self._colorModeList.blockSignals(old)
 
         try:
+            old = self._paletteCombo.blockSignals(True)
+            if mem.palette is None:
+                palette_mem = None
+            else:
+                try:
+                    palette_mem = self._rom.memory_map_from_offset(mem.palette)
+                except ValueError:
+                    logging.warning("Palette 0x{mem.palette:08X} does not exist")
+                    palette_mem = None
+            self._paletteCombo.selectMemoryMap(palette_mem)
+        finally:
+            self._paletteCombo.blockSignals(old)
+
+        try:
             old = self._pixelOrderList.blockSignals(True)
             self._pixelOrderList.selectPixelOrder(mem.pixel_order)
         finally:
@@ -201,21 +231,19 @@ class Extractor(Qt.QWidget):
         if mem is None:
             return
 
-        data = self._readImage(mem)
-        if data is None:
-            return
+        image_shape = self._rom.image_shape(mem)
+        if image_shape is not None:
+            shapes = guessed_shapes(image_shape[0] * image_shape[1])
+            try:
+                old = self._shapeList.blockSignals(True)
+                self._shapeList.clear()
+                for shape in shapes:
+                    self._shapeList.addShape(shape)
+                self._shapeList.selectShape(image_shape)
+            finally:
+                self._shapeList.blockSignals(old)
 
-        shapes = guessed_shapes(data.size)
-        try:
-            old = self._shapeList.blockSignals(True)
-            self._shapeList.clear()
-            for shape in shapes:
-                self._shapeList.addShape(shape)
-            self._shapeList.selectShape(data.shape)
-        finally:
-            self._shapeList.blockSignals(old)
-
-        self._view.setImage(data)
+        self._updateImage()
 
     def _onColorModeSelected(self):
         mem = self._memList.selectedMemoryMap()
@@ -256,6 +284,19 @@ class Extractor(Qt.QWidget):
 
         pixelOrder = self._pixelOrderList.selectedPixelOrder()
         mem.pixel_order = pixelOrder
+        self._updateImage()
+
+    def _onPaletteSelected(self):
+        mem = self._memList.selectedMemoryMap()
+        if mem is None:
+            return
+
+        palette_mem = self._paletteCombo.selectedMemoryMap()
+        if palette_mem is None:
+            mem.palette = None
+        else:
+            mem.palette = palette_mem.offset
+
         self._updateImage()
 
     def _updateImage(self):
