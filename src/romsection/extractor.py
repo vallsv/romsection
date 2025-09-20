@@ -182,10 +182,6 @@ class Extractor(Qt.QWidget):
         if mem is None:
             return
 
-        if mem.data_type is None:
-            # Compatibility with old files
-            mem.data_type = DataType.IMAGE
-
         if mem.image_color_mode is None and mem.image_shape is None and mem.image_pixel_order is None:
             previous = self._lastBySize.get(mem.byte_payload)
             if previous is not None:

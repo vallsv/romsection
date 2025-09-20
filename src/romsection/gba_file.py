@@ -167,7 +167,7 @@ class GBAFile:
                 mem = MemoryMap(
                     offset,
                     data.size,
-                    data_type=data_type,
+                    data_type=DataType.IMAGE,
                 )
                 self.offsets.append(mem)
             offset += 1
