@@ -10,14 +10,14 @@ from silx.gui.plot.ImageView import ImageView
 from .lz77 import decompress as decompress_lz77
 from .utils import prime_factors, guessed_shapes
 from .widgets.memory_map_list import MemoryMapList
-from .widgets.color_mode_list import ColorModeList
+from .widgets.image_color_mode_list import ImageColorModeList
 from .widgets.shape_list import ShapeList
-from .widgets.pixel_order_list import PixelOrderList
+from .widgets.image_pixel_order_list import ImagePixelOrderList
 from .widgets.data_type_list import DataTypeList
 from .widgets.palette_list_model import PaletteListModel
 from .widgets.combo_box import ComboBox
 from .widgets.palette_combo_box import PaletteComboBox
-from .gba_file import GBAFile, MemoryMap, ColorMode, PixelOrder, DataType
+from .gba_file import GBAFile, MemoryMap, ImageColorMode, ImagePixelOrder, DataType
 
 
 class Extractor(Qt.QWidget):
@@ -62,14 +62,14 @@ class Extractor(Qt.QWidget):
         )
         self._paletteCombo.currentIndexChanged.connect(self._onPaletteSelected)
 
-        self._colorModeList = ColorModeList(self)
-        self._colorModeList.itemSelectionChanged.connect(self._onColorModeSelected)
+        self._colorModeList = ImageColorModeList(self)
+        self._colorModeList.itemSelectionChanged.connect(self._onImageColorModeSelected)
 
         self._shapeList = ShapeList(self)
         self._shapeList.itemSelectionChanged.connect(self._onShapeSelected)
 
-        self._pixelOrderList = PixelOrderList(self)
-        self._pixelOrderList.itemSelectionChanged.connect(self._onPixelOrderSelected)
+        self._pixelOrderList = ImagePixelOrderList(self)
+        self._pixelOrderList.itemSelectionChanged.connect(self._onImagePixelOrderSelected)
 
         self._view = ImageView(self, backend="gl")
         self._view.setKeepDataAspectRatio(True)
@@ -129,7 +129,7 @@ class Extractor(Qt.QWidget):
         if mem is None:
             return
 
-        dialog.selectFile(f"{mem.offset:08X}+{mem.length}.raw")
+        dialog.selectFile(f"{mem.byte_offset:08X}+{mem.byte_length}.raw")
         result = dialog.exec_()
         if not result:
             return
@@ -171,14 +171,14 @@ class Extractor(Qt.QWidget):
             # Compatibility with old files
             mem.data_type = DataType.IMAGE
 
-        if mem.color_mode is None and mem.shape is None and mem.pixel_order is None:
-            previous = self._lastBySize.get(mem.nb_pixels)
+        if mem.image_color_mode is None and mem.image_shape is None and mem.image_pixel_order is None:
+            previous = self._lastBySize.get(mem.byte_payload)
             if previous is not None:
-                mem.color_mode = previous.color_mode
-                mem.shape = previous.shape
-                mem.pixel_order = previous.pixel_order
+                mem.image_color_mode = previous.image_color_mode
+                mem.image_shape = previous.image_shape
+                mem.image_pixel_order = previous.image_pixel_order
 
-        self._lastBySize[mem.nb_pixels] = mem
+        self._lastBySize[mem.byte_payload] = mem
 
         try:
             old = self._dataTypeList.blockSignals(True)
@@ -188,19 +188,19 @@ class Extractor(Qt.QWidget):
 
         try:
             old = self._colorModeList.blockSignals(True)
-            self._colorModeList.selectColorMode(mem.color_mode)
+            self._colorModeList.selectImageColorMode(mem.image_color_mode)
         finally:
             self._colorModeList.blockSignals(old)
 
         try:
             old = self._paletteCombo.blockSignals(True)
-            if mem.palette is None:
+            if mem.image_palette_offset is None:
                 palette_mem = None
             else:
                 try:
-                    palette_mem = self._rom.memory_map_from_offset(mem.palette)
+                    palette_mem = self._rom.memory_map_from_offset(mem.image_palette_offset)
                 except ValueError:
-                    logging.warning("Palette 0x{mem.palette:08X} does not exist")
+                    logging.warning("Palette 0x{mem.image_palette_offset:08X} does not exist")
                     palette_mem = None
             self._paletteCombo.selectMemoryMap(palette_mem)
         finally:
@@ -208,7 +208,7 @@ class Extractor(Qt.QWidget):
 
         try:
             old = self._pixelOrderList.blockSignals(True)
-            self._pixelOrderList.selectPixelOrder(mem.pixel_order)
+            self._pixelOrderList.selectImagePixelOrder(mem.image_pixel_order)
         finally:
             self._pixelOrderList.blockSignals(old)
 
@@ -245,7 +245,7 @@ class Extractor(Qt.QWidget):
 
         self._updateImage()
 
-    def _onColorModeSelected(self):
+    def _onImageColorModeSelected(self):
         mem = self._memList.selectedMemoryMap()
         if mem is None:
             return
@@ -254,17 +254,17 @@ class Extractor(Qt.QWidget):
         if len(items) != 1:
             return
         colorMode = items[0].data(Qt.Qt.UserRole)
-        if mem.color_mode == colorMode:
+        if mem.image_color_mode == colorMode:
             return
 
-        previousColorMode = mem.color_mode
-        mem.color_mode = colorMode
+        previousImageColorMode = mem.image_color_mode
+        mem.image_color_mode = colorMode
 
-        if mem.shape is not None:
-            pnb = 1 if previousColorMode in [None, ColorMode.INDEXED_8BIT] else 2
-            nb = 1 if colorMode in [None, ColorMode.INDEXED_8BIT] else 2
+        if mem.image_shape is not None:
+            pnb = 1 if previousImageColorMode in [None, ImageColorMode.INDEXED_8BIT] else 2
+            nb = 1 if colorMode in [None, ImageColorMode.INDEXED_8BIT] else 2
             if pnb != nb:
-                mem.shape = mem.shape[0], int(mem.shape[1] * nb / pnb)
+                mem.image_shape = mem.image_shape[0], int(mem.image_shape[1] * nb / pnb)
 
         self._syncShapes()
 
@@ -274,16 +274,16 @@ class Extractor(Qt.QWidget):
             return
 
         shape = self._shapeList.selectedShape()
-        mem.shape = shape
+        mem.image_shape = shape
         self._updateImage()
 
-    def _onPixelOrderSelected(self):
+    def _onImagePixelOrderSelected(self):
         mem = self._memList.selectedMemoryMap()
         if mem is None:
             return
 
-        pixelOrder = self._pixelOrderList.selectedPixelOrder()
-        mem.pixel_order = pixelOrder
+        pixelOrder = self._pixelOrderList.selectedImagePixelOrder()
+        mem.image_pixel_order = pixelOrder
         self._updateImage()
 
     def _onPaletteSelected(self):
@@ -293,9 +293,9 @@ class Extractor(Qt.QWidget):
 
         palette_mem = self._paletteCombo.selectedMemoryMap()
         if palette_mem is None:
-            mem.palette = None
+            mem.image_palette_offset = None
         else:
-            mem.palette = palette_mem.offset
+            mem.image_palette_offset = palette_mem.byte_offset
 
         self._updateImage()
 

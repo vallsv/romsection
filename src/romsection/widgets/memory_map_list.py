@@ -10,7 +10,7 @@ class MemoryMapList(Qt.QListWidget):
 
     def addMemoryMap(self, mem: MemoryMap):
         item = Qt.QListWidgetItem()
-        item.setText(f"{mem.offset:08X} {mem.nb_pixels: 8d}px")
+        item.setText(f"{mem.byte_offset:08X} {mem.byte_payload: 8d}B")
         item.setData(Qt.Qt.UserRole, mem)
         self.addItem(item)
 

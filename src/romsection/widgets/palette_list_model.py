@@ -58,7 +58,7 @@ class PaletteListModel(ObjectListModel):
             if not index.isValid():
                 return ""
             mem = self.object(index)
-            return f"Palette 0x{mem.offset:08X}"
+            return f"Palette 0x{mem.byte_offset:08X}"
         if role == Qt.Qt.DecorationRole:
             if not index.isValid():
                 return Qt.QIcon()
@@ -66,9 +66,9 @@ class PaletteListModel(ObjectListModel):
                 return Qt.QIcon()
             mem = self.object(index)
             # FIXME: Use a hash from the mem state
-            icon = _palettePreview.get(mem.offset)
+            icon = _palettePreview.get(mem.byte_offset)
             if icon is None:
                 icon = createPaletteIcon(self._rom, mem)
-                _palettePreview[mem.offset] = icon
+                _palettePreview[mem.byte_offset] = icon
             return icon
         return ObjectListModel.data(self, index, role)

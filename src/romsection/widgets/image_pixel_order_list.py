@@ -1,9 +1,9 @@
 from PyQt5 import Qt
 
-from ..gba_file import PixelOrder
+from ..gba_file import ImagePixelOrder
 
 
-class PixelOrderList(Qt.QListWidget):
+class ImagePixelOrderList(Qt.QListWidget):
     def __init__(self, parent: Qt.QWidget | None = None):
         Qt.QListWidget.__init__(self, parent)
         self.setUniformItemSizes(True)
@@ -13,25 +13,25 @@ class PixelOrderList(Qt.QListWidget):
 
         item = Qt.QListWidgetItem()
         item.setText(f"Normal")
-        item.setData(Qt.Qt.UserRole, PixelOrder.NORMAL)
+        item.setData(Qt.Qt.UserRole, ImagePixelOrder.NORMAL)
         self.addItem(item)
 
         item = Qt.QListWidgetItem()
         item.setText(f"Tiled 8×8")
-        item.setData(Qt.Qt.UserRole, PixelOrder.TILED_8X8)
+        item.setData(Qt.Qt.UserRole, ImagePixelOrder.TILED_8X8)
         self.addItem(item)
 
         rect = self.visualItemRect(item)
         self.setMaximumHeight(rect.height() * self.count() + 4)
 
-    def selectedPixelOrder(self) -> PixelOrder | None:
+    def selectedImagePixelOrder(self) -> ImagePixelOrder | None:
         items = self.selectedItems()
         if len(items) != 1:
             return None
         pixelOrder = items[0].data(Qt.Qt.UserRole)
         return pixelOrder
 
-    def _findItemFromPixelOrder(self, pixelOrder: PixelOrder | None) -> Qt.QListWidgetItem | None:
+    def _findItemFromPixelOrder(self, pixelOrder: ImagePixelOrder | None) -> Qt.QListWidgetItem | None:
         if pixelOrder is None:
             return None
         for i in range(self.count()):
@@ -40,7 +40,7 @@ class PixelOrderList(Qt.QListWidget):
                 return item
         return None
 
-    def selectPixelOrder(self, pixelOrder: PixelOrder | None):
+    def selectImagePixelOrder(self, pixelOrder: ImagePixelOrder | None):
         item = self._findItemFromPixelOrder(pixelOrder)
         if item is not None:
             i = self.row(item)
