@@ -21,6 +21,15 @@ from .widgets.palette_combo_box import PaletteComboBox
 from .gba_file import GBAFile, MemoryMap, ImageColorMode, ImagePixelOrder, DataType
 
 
+@contextlib.contextmanager
+def blockSignals(widget: Qt.QWidget):
+    try:
+        old = widget.blockSignals(True)
+        yield
+    finally:
+        widget.blockSignals(old)
+
+
 class Extractor(Qt.QWidget):
     def __init__(self, parent: Qt.QWidget | None = None):
         Qt.QWidget.__init__(self, parent)
@@ -191,20 +200,14 @@ class Extractor(Qt.QWidget):
 
         self._lastBySize[mem.byte_payload] = mem
 
-        try:
-            old = self._dataTypeList.blockSignals(True)
+        with blockSignals(self._dataTypeList):
             self._dataTypeList.selectDataType(mem.data_type)
-        finally:
-            self._dataTypeList.blockSignals(old)
 
-        try:
-            old = self._colorModeList.blockSignals(True)
+        with blockSignals(self._colorModeList):
             self._colorModeList.selectImageColorMode(mem.image_color_mode)
-        finally:
-            self._colorModeList.blockSignals(old)
 
-        try:
-            old = self._paletteCombo.blockSignals(True)
+        with blockSignals(self._paletteCombo):
+            image_palette_offset = mem.image_palette_offset
             if mem.image_palette_offset is None:
                 palette_mem = None
             else:
@@ -214,14 +217,9 @@ class Extractor(Qt.QWidget):
                     logging.warning("Palette 0x{mem.image_palette_offset:08X} does not exist")
                     palette_mem = None
             self._paletteCombo.selectMemoryMap(palette_mem)
-        finally:
-            self._paletteCombo.blockSignals(old)
 
-        try:
-            old = self._pixelOrderList.blockSignals(True)
+        with blockSignals(self._pixelOrderList):
             self._pixelOrderList.selectImagePixelOrder(mem.image_pixel_order)
-        finally:
-            self._pixelOrderList.blockSignals(old)
 
         self._syncShapes()
 
@@ -245,14 +243,11 @@ class Extractor(Qt.QWidget):
         image_shape = self._rom.image_shape(mem)
         if image_shape is not None:
             shapes = guessed_shapes(image_shape[0] * image_shape[1])
-            try:
-                old = self._shapeList.blockSignals(True)
+            with blockSignals(self._shapeList):
                 self._shapeList.clear()
                 for shape in shapes:
                     self._shapeList.addShape(shape)
                 self._shapeList.selectShape(image_shape)
-            finally:
-                self._shapeList.blockSignals(old)
 
         self._updateImage()
 
