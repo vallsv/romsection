@@ -4,9 +4,10 @@ import logging
 import yaml
 import enum
 import numpy
+import traceback
 from PyQt5 import Qt
-
 from silx.gui.plot.ImageView import ImageView
+
 from .lz77 import decompress as decompress_lz77
 from .utils import prime_factors, guessed_shapes
 from .widgets.memory_map_list import MemoryMapList
@@ -71,10 +72,21 @@ class Extractor(Qt.QWidget):
         self._pixelOrderList = ImagePixelOrderList(self)
         self._pixelOrderList.itemSelectionChanged.connect(self._onImagePixelOrderSelected)
 
-        self._view = ImageView(self, backend="gl")
-        self._view.setKeepDataAspectRatio(True)
-        self._view.setSideHistogramDisplayed(False)
-        self._view.getYAxis().setInverted(True)
+        self._nothing = Qt.QWidget(self)
+
+        self._error = Qt.QTextEdit(self)
+        self._error.setReadOnly(True)
+        self._error.setStyleSheet(".QTextEdit { color: red; }")
+
+        self._array = ImageView(self, backend="gl")
+        self._array.setKeepDataAspectRatio(True)
+        self._array.setSideHistogramDisplayed(False)
+        self._array.getYAxis().setInverted(True)
+
+        self._view = Qt.QStackedLayout()
+        self._view.addWidget(self._nothing)
+        self._view.addWidget(self._array)
+        self._view.addWidget(self._error)
 
         spriteCodec = Qt.QVBoxLayout()
         spriteCodec.addWidget(self._dataTypeList)
@@ -92,7 +104,8 @@ class Extractor(Qt.QWidget):
         main.addLayout(toolbar)
         main.addWidget(self._memList)
         main.addLayout(spriteCodec)
-        main.addWidget(self._view)
+        main.addLayout(self._view)
+        main.setStretchFactor(self._view, 1)
 
     def setRom(self, rom: GBAFile):
         self._rom = rom
@@ -302,35 +315,31 @@ class Extractor(Qt.QWidget):
     def _updateImage(self):
         mem = self._memList.selectedMemoryMap()
         if mem is None:
+            self._view.setCurrentWidget(self._nothing)
             return
 
-        data = self._readImage(mem)
-        if data is None:
-            self._view.setVisible(False)
-            return
-
-        self._view.setVisible(True)
         try:
-            self._view.setImage(data)
-        except Exception:
-            logging.error("Error while displaying data in silx plot", exc_info=True)
-            print(data.size, data.shape, data.dtype)
-            print(data)
+            data = self._readImage(mem)
+            self._array.setImage(data)
+            self._view.setCurrentWidget(self._array)
+        except Exception as e:
+            self._error.clear()
+            for line in traceback.format_exception(e):
+                self._error.append(line)
+            self._view.setCurrentWidget(self._error)
 
-    def _readImage(self, mem: MemoryMap):
+    def _readImage(self, mem: MemoryMap) -> numpy.ndarray:
+        """
+        Return a displayable array from a memory map.
+
+        Raises:
+            Exception: In case of problem
+        """
         assert self._rom is not None
         if mem.data_type == DataType.PALETTE:
-            try:
-                return self._rom.palette_data(mem)
-            except Exception as e:
-                logging.error("Error while reading palette data", exc_info=True)
-                return None
+            return self._rom.palette_data(mem)
 
         if mem.data_type == DataType.IMAGE:
-            try:
-                return self._rom.image_data(mem)
-            except Exception as e:
-                logging.error("Error while reading palette data", exc_info=True)
-                return None
+            return self._rom.image_data(mem)
 
-        return None
+        raise ValueError(f"No image representation for memory map of type {mem.data_type}")
