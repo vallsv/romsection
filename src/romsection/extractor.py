@@ -166,7 +166,9 @@ class Extractor(Qt.QWidget):
         self._memList.clear()
         for mem in self._rom.offsets:
             self._memList.addMemoryMap(mem)
-        self._paletteList.setObjectList(self._rom.palettes())
+        availablePalettes = self._rom.palettes()
+        availablePalettes.insert(0, None)
+        self._paletteList.setObjectList(availablePalettes)
 
     def _saveInfo(self):
         mapping = []
