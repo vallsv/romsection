@@ -9,6 +9,7 @@ dependencies = [
   "pyqt5",
   "numpy",
   "silx",
+  "lru-dict",
 ]
 
 [project.optional-dependencies]

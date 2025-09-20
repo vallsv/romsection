@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import logging
 import numpy
+import lru
 from PyQt5 import Qt
 
 from .object_list_model import ObjectListModel
@@ -7,8 +10,7 @@ from ..gba_file import GBAFile, MemoryMap, DataType
 from ..utils import convert_16bx1_to_5bx3
 
 
-# FIXME: Have to be replaced by a lru map
-_palettePreview: dict[tuple[int], Qt.QIcon] = {}
+_palettePreview: lru.LRU[int, Qt.QIcon] = lru.LRU(512)
 
 
 def createPaletteIcon(rom: GBAFile, mem: MemoryMap) -> Qt.QIcon:
