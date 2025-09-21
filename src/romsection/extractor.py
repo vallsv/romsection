@@ -148,9 +148,15 @@ class Extractor(Qt.QWidget):
         saveRaw.triggered.connect(self._saveMemoryMapAsRaw)
         menu.addAction(saveRaw)
 
+        saveDat = Qt.QAction(menu)
+        saveDat.setText("Save as dat...")
+        saveDat.triggered.connect(self._saveMemoryMapAsDat)
+        menu.addAction(saveDat)
+
         menu.exec(globalPos)
 
     def _saveMemoryMapAsRaw(self):
+        """Save the memory as it is stored (compressed) into a file"""
         dialog = Qt.QFileDialog(self)
         dialog.setWindowTitle("Save as RAW")
         dialog.setModal(True)
@@ -176,6 +182,34 @@ class Extractor(Qt.QWidget):
         filename = dialog.selectedFiles()[0]
         with open(filename, "wb") as f:
             f.write(data)
+
+    def _saveMemoryMapAsDat(self):
+        """Save the decompressed memory into a file"""
+        dialog = Qt.QFileDialog(self)
+        dialog.setWindowTitle("Save as DAT")
+        dialog.setModal(True)
+        filters = [
+            "RAW files (*.dat)",
+            "All files (*)",
+        ]
+        dialog.setNameFilters(filters)
+        dialog.setFileMode(Qt.QFileDialog.AnyFile)
+        dialog.setAcceptMode(Qt.QFileDialog.AcceptSave)
+
+        mem = self._memView.selectedMemoryMap()
+        if mem is None:
+            return
+
+        dialog.selectFile(f"{mem.byte_offset:08X}+{mem.byte_length}.dat")
+        result = dialog.exec_()
+        if not result:
+            return
+
+        data = self._rom.extract_lz77(mem)
+
+        filename = dialog.selectedFiles()[0]
+        with open(filename, "wb") as f:
+            f.write(data.tobytes())
 
     def _loadInfo(self):
         with open(f"{self._rom.filename}.yml", "rt") as f:
