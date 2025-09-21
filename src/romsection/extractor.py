@@ -314,6 +314,8 @@ class Extractor(Qt.QWidget):
             return
         for mem in self._memView.selectedMemoryMaps():
             mem.data_type = dataType
+
+        self._updateShapes()
         self._updateImage()
 
     def _updateShapes(self):
@@ -324,15 +326,20 @@ class Extractor(Qt.QWidget):
                 self._shapeList.clear()
         elif len(mems) == 1:
             mem = mems[0]
-            self._shapeList.setEnabled(True)
-            image_shape = self._rom.image_shape(mem)
-            with blockSignals(self._shapeList):
-                self._shapeList.clear()
-                if image_shape is not None:
-                    shapes = guessed_shapes(image_shape[0] * image_shape[1])
-                    for shape in shapes:
-                        self._shapeList.addShape(shape)
-                    self._shapeList.selectShape(image_shape)
+            if mem.data_type != DataType.IMAGE:
+                self._shapeList.setEnabled(False)
+                with blockSignals(self._shapeList):
+                    self._shapeList.clear()
+            else:
+                self._shapeList.setEnabled(True)
+                image_shape = self._rom.image_shape(mem)
+                with blockSignals(self._shapeList):
+                    self._shapeList.clear()
+                    if image_shape is not None:
+                        shapes = guessed_shapes(image_shape[0] * image_shape[1])
+                        for shape in shapes:
+                            self._shapeList.addShape(shape)
+                        self._shapeList.selectShape(image_shape)
         else:
             self._shapeList.setEnabled(False)
             with blockSignals(self._shapeList):
