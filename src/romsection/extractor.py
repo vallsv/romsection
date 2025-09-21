@@ -12,7 +12,8 @@ from silx.gui.plot.ImageView import ImageView
 
 from .lz77 import decompress as decompress_lz77
 from .utils import prime_factors, guessed_shapes
-from .widgets.memory_map_list import MemoryMapList
+from .widgets.memory_map_list_view import MemoryMapListView
+from .widgets.memory_map_list_model import MemoryMapListModel
 from .widgets.image_color_mode_list import ImageColorModeList
 from .widgets.shape_list import ShapeList
 from .widgets.image_pixel_order_list import ImagePixelOrderList
@@ -39,6 +40,7 @@ class Extractor(Qt.QWidget):
 
         self._lastBySize: dict[int, MemoryMap] = {}
         self._paletteList =  PaletteListModel(self)
+        self._memoryMapList = MemoryMapListModel(self)
 
         toolbar = Qt.QVBoxLayout()
         scanAll = Qt.QPushButton(self)
@@ -58,11 +60,12 @@ class Extractor(Qt.QWidget):
 
         toolbar.addStretch(1)
 
-        self._memList = MemoryMapList(self)
-        self._memList.itemSelectionChanged.connect(self._onMemoryMapSelectionChanged)
-        self._memList.setContextMenuPolicy(Qt.Qt.CustomContextMenu)
-        self._memList.customContextMenuRequested.connect(self._showSpriteContextMenu)
-        self._memList.setSelectionMode(Qt.QAbstractItemView.ExtendedSelection)
+        self._memView = MemoryMapListView(self)
+        self._memView.setModel(self._memoryMapList)
+        self._memView.selectionModel().selectionChanged.connect(self._onMemoryMapSelectionChanged)
+        self._memView.setContextMenuPolicy(Qt.Qt.CustomContextMenu)
+        self._memView.customContextMenuRequested.connect(self._showSpriteContextMenu)
+        self._memView.setSelectionMode(Qt.QAbstractItemView.ExtendedSelection)
 
         self._dataTypeList = DataTypeList(self)
         self._dataTypeList.itemSelectionChanged.connect(self._onDataTypeSelected)
@@ -114,7 +117,7 @@ class Extractor(Qt.QWidget):
 
         main = Qt.QHBoxLayout(self)
         main.addLayout(toolbar)
-        main.addWidget(self._memList)
+        main.addWidget(self._memView)
         main.addLayout(spriteCodec)
         main.addLayout(self._view)
         main.setStretchFactor(self._view, 1)
@@ -130,7 +133,7 @@ class Extractor(Qt.QWidget):
         self._syncSpriteList()
 
     def _showSpriteContextMenu(self, pos: Qt.QPoint):
-        globalPos = self._memList.mapToGlobal(pos)
+        globalPos = self._memView.mapToGlobal(pos)
         menu = Qt.QMenu(self)
 
         saveRaw = Qt.QAction(menu)
@@ -152,7 +155,7 @@ class Extractor(Qt.QWidget):
         dialog.setFileMode(Qt.QFileDialog.AnyFile)
         dialog.setAcceptMode(Qt.QFileDialog.AcceptSave)
 
-        mem = self._memList.selectedMemoryMap()
+        mem = self._memView.selectedMemoryMap()
         if mem is None:
             return
 
@@ -177,9 +180,7 @@ class Extractor(Qt.QWidget):
         self._updateMemoryMapList()
 
     def _updateMemoryMapList(self):
-        self._memList.clear()
-        for mem in self._rom.offsets:
-            self._memList.addMemoryMap(mem)
+        self._memoryMapList.setObjectList(self._rom.offsets)
         availablePalettes = self._rom.palettes()
         availablePalettes.insert(0, None)
         self._paletteList.setObjectList(availablePalettes)
@@ -197,7 +198,7 @@ class Extractor(Qt.QWidget):
         Qt.QTimer.singleShot(0, self._debouncedMemoryMapSelectionChanged)
 
     def _debouncedMemoryMapSelectionChanged(self):
-        mems = self._memList.selectedMemoryMaps()
+        mems = self._memView.selectedMemoryMaps()
         if len(mems) == 0:
             self._updateNoMemoryMapSelected()
         elif len(mems) == 1:
@@ -311,12 +312,12 @@ class Extractor(Qt.QWidget):
         dataType = self._dataTypeList.selectedDataType()
         if dataType is None:
             return
-        for mem in self._memList.selectedMemoryMaps():
+        for mem in self._memView.selectedMemoryMaps():
             mem.data_type = dataType
         self._updateImage()
 
     def _updateShapes(self):
-        mems = self._memList.selectedMemoryMaps()
+        mems = self._memView.selectedMemoryMaps()
         if len(mems) == 0:
             self._shapeList.setEnabled(False)
             with blockSignals(self._shapeList):
@@ -339,7 +340,7 @@ class Extractor(Qt.QWidget):
 
     def _onImageColorModeSelected(self):
         colorMode = self._colorModeList.selectedImageColorMode()
-        for mem in self._memList.selectedMemoryMaps():
+        for mem in self._memView.selectedMemoryMaps():
             if mem.image_color_mode == colorMode:
                 continue
 
@@ -352,14 +353,14 @@ class Extractor(Qt.QWidget):
                 if pnb != nb:
                     mem.image_shape = mem.image_shape[0], int(mem.image_shape[1] * nb / pnb)
 
-        mem = self._memList.selectedMemoryMap()
+        mem = self._memView.selectedMemoryMap()
         if mem is None:
             return
         self._updateShapes()
         self._updateImage()
 
     def _onShapeSelected(self):
-        mem = self._memList.selectedMemoryMap()
+        mem = self._memView.selectedMemoryMap()
         if mem is None:
             return
 
@@ -369,13 +370,13 @@ class Extractor(Qt.QWidget):
 
     def _onImagePixelOrderSelected(self):
         pixelOrder = self._pixelOrderList.selectedImagePixelOrder()
-        for mem in self._memList.selectedMemoryMaps():
+        for mem in self._memView.selectedMemoryMaps():
             mem.image_pixel_order = pixelOrder
         self._updateImage()
 
     def _onPaletteSelected(self):
         palette_mem = self._paletteCombo.selectedMemoryMap()
-        for mem in self._memList.selectedMemoryMaps():
+        for mem in self._memView.selectedMemoryMaps():
             if palette_mem is None:
                 mem.image_palette_offset = None
             else:
@@ -383,7 +384,7 @@ class Extractor(Qt.QWidget):
         self._updateImage()
 
     def _updateImage(self):
-        mem = self._memList.currentMemoryMap()
+        mem = self._memView.currentMemoryMap()
         if mem is None:
             self._view.setCurrentWidget(self._nothing)
             return

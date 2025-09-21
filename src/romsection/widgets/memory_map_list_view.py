@@ -3,26 +3,22 @@ from PyQt5 import Qt
 from ..gba_file import MemoryMap
 
 
-class MemoryMapList(Qt.QListWidget):
+class MemoryMapListView(Qt.QListView):
     def __init__(self, parent: Qt.QWidget | None = None):
         Qt.QListWidget.__init__(self, parent)
         self.setUniformItemSizes(True)
 
-    def addMemoryMap(self, mem: MemoryMap):
-        item = Qt.QListWidgetItem()
-        item.setText(f"{mem.byte_offset:08X} {mem.byte_payload: 8d}B")
-        item.setData(Qt.Qt.UserRole, mem)
-        self.addItem(item)
-
     def selectedMemoryMap(self) -> MemoryMap | None:
-        items = self.selectedItems()
+        model = self.selectionModel()
+        items = model.selectedIndexes()
         if len(items) != 1:
             return None
         mem = items[0].data(Qt.Qt.UserRole)
         return mem
 
     def selectedMemoryMaps(self) -> list[MemoryMap]:
-        items = self.selectedItems()
+        model = self.selectionModel()
+        items = model.selectedIndexes()
         return [i.data(Qt.Qt.UserRole) for i in items]
 
     def currentMemoryMap(self) -> MemoryMap | None:
@@ -31,6 +27,5 @@ class MemoryMapList(Qt.QListWidget):
         index = model.currentIndex()
         if not index.isValid():
             return None
-        item = self.itemFromIndex(index)
-        mem = item.data(Qt.Qt.UserRole)
+        mem = index.data(Qt.Qt.UserRole)
         return mem
