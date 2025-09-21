@@ -69,15 +69,18 @@ def decompress(input_stream: io.RawIOBase) -> numpy.ndarray:
                 value = input_stream.read(2)
                 length = (value[0] >> 4) + 3
                 location = 1 + value[1] + ((value[0] & 0xF) << 8)
-                if pos < location:
-                    raise ValueError("Not a valid GBA LZ77 stream")
 
                 if pos + length > decompressed_length:
                     raise ValueError("Not a valid GBA LZ77 stream")
 
                 while length > 0:
                     cp = min(length, location)
-                    result[pos:pos + cp] = result[pos - location: pos - location + cp]
+                    if pos == 0:
+                        # This compression feature is not fully implemented here.
+                        # But it is not considered as safe. It could be dropped.
+                        result[pos:pos + cp] = 0
+                    else:
+                        result[pos:pos + cp] = result[pos - location: pos - location + cp]
                     pos += cp
                     length -= cp
     return result
