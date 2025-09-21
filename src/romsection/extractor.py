@@ -33,6 +33,13 @@ def blockSignals(widget: Qt.QWidget):
         widget.blockSignals(old)
 
 
+def uniqueValueElseNone(data: list[typing.Any]):
+    reduced = set(data)
+    if len(reduced) == 1:
+        return data[0]
+    return None
+
+
 class Extractor(Qt.QWidget):
     def __init__(self, parent: Qt.QWidget | None = None):
         Qt.QWidget.__init__(self, parent)
@@ -225,22 +232,14 @@ class Extractor(Qt.QWidget):
         self._view.setCurrentWidget(self._nothing)
 
     def _updateMultipleMemoryMapSelected(self, mems: list[MemoryMap]):
-        """Allow to display and edit as much as possible.
-
-        FIXME: Support display and edition of shape on some conditions
+        """
+        Allow to display and edit as much as possible.
         """
         assert self._rom is not None
         self._dataTypeList.setEnabled(True)
         self._colorModeList.setEnabled(True)
         self._paletteCombo.setEnabled(True)
-        self._shapeList.setEnabled(False)
         self._pixelOrderList.setEnabled(True)
-
-        def uniqueValueElseNone(data: list[typing.Any]):
-            reduced = set(data)
-            if len(reduced) == 1:
-                return data[0]
-            return None
 
         with blockSignals(self._dataTypeList):
             reducedDataType = uniqueValueElseNone([m.data_type for m in mems])
@@ -258,12 +257,11 @@ class Extractor(Qt.QWidget):
                     logging.warning("Palette 0x{mem.image_palette_offset:08X} does not exist")
                     palette_mem = None
             self._paletteCombo.selectMemoryMap(palette_mem)
-        with blockSignals(self._shapeList):
-            self._shapeList.clear()
         with blockSignals(self._pixelOrderList):
             reducedPixelOrder = uniqueValueElseNone([m.image_pixel_order for m in mems])
             self._pixelOrderList.selectImagePixelOrder(reducedPixelOrder)
 
+        self._updateShapes()
         self._updateImage()
 
     def _updateMemoryMapSelected(self, mem: MemoryMap):
@@ -341,9 +339,24 @@ class Extractor(Qt.QWidget):
                             self._shapeList.addShape(shape)
                         self._shapeList.selectShape(image_shape)
         else:
-            self._shapeList.setEnabled(False)
-            with blockSignals(self._shapeList):
-                self._shapeList.clear()
+            reducedDataType = uniqueValueElseNone([m.data_type for m in mems])
+            reducedBytePayload = uniqueValueElseNone([m.byte_payload for m in mems])
+            reducedColorMap = uniqueValueElseNone([m.image_color_mode for m in mems])
+
+            if reducedDataType != DataType.IMAGE or reducedBytePayload is None or reducedColorMap is None:
+                self._shapeList.setEnabled(False)
+                with blockSignals(self._shapeList):
+                    self._shapeList.clear()
+            else:
+                reducedShape = uniqueValueElseNone([m.image_shape for m in mems])
+                self._shapeList.setEnabled(True)
+                with blockSignals(self._shapeList):
+                    self._shapeList.clear()
+                    if reducedShape is not None:
+                        shapes = guessed_shapes(reducedShape[0] * reducedShape[1])
+                        for shape in shapes:
+                            self._shapeList.addShape(shape)
+                        self._shapeList.selectShape(reducedShape)
 
     def _onImageColorModeSelected(self):
         colorMode = self._colorModeList.selectedImageColorMode()
@@ -367,12 +380,9 @@ class Extractor(Qt.QWidget):
         self._updateImage()
 
     def _onShapeSelected(self):
-        mem = self._memView.selectedMemoryMap()
-        if mem is None:
-            return
-
         shape = self._shapeList.selectedShape()
-        mem.image_shape = shape
+        for mem in self._memView.selectedMemoryMaps():
+            mem.image_shape = shape
         self._updateImage()
 
     def _onImagePixelOrderSelected(self):
