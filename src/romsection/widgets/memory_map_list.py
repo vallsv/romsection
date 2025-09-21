@@ -20,3 +20,17 @@ class MemoryMapList(Qt.QListWidget):
             return None
         mem = items[0].data(Qt.Qt.UserRole)
         return mem
+
+    def selectedMemoryMaps(self) -> list[MemoryMap]:
+        items = self.selectedItems()
+        return [i.data(Qt.Qt.UserRole) for i in items]
+
+    def currentMemoryMap(self) -> MemoryMap | None:
+        """Return the current memory map."""
+        model = self.selectionModel()
+        index = model.currentIndex()
+        if not index.isValid():
+            return None
+        item = self.itemFromIndex(index)
+        mem = item.data(Qt.Qt.UserRole)
+        return mem

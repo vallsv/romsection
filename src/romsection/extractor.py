@@ -3,8 +3,10 @@ import sys
 import logging
 import yaml
 import enum
+import typing
 import numpy
 import traceback
+import contextlib
 from PyQt5 import Qt
 from silx.gui.plot.ImageView import ImageView
 
@@ -57,9 +59,10 @@ class Extractor(Qt.QWidget):
         toolbar.addStretch(1)
 
         self._memList = MemoryMapList(self)
-        self._memList.itemSelectionChanged.connect(self._onMemoryMapSelected)
+        self._memList.itemSelectionChanged.connect(self._onMemoryMapSelectionChanged)
         self._memList.setContextMenuPolicy(Qt.Qt.CustomContextMenu)
         self._memList.customContextMenuRequested.connect(self._showSpriteContextMenu)
+        self._memList.setSelectionMode(Qt.QAbstractItemView.ExtendedSelection)
 
         self._dataTypeList = DataTypeList(self)
         self._dataTypeList.itemSelectionChanged.connect(self._onDataTypeSelected)
@@ -116,6 +119,8 @@ class Extractor(Qt.QWidget):
         main.addLayout(self._view)
         main.setStretchFactor(self._view, 1)
 
+        self._updateNoMemoryMapSelected()
+
     def setRom(self, rom: GBAFile):
         self._rom = rom
         self._paletteList.setRom(self._rom)
@@ -169,9 +174,9 @@ class Extractor(Qt.QWidget):
         for m in data["mapping"]:
             mem = MemoryMap.from_dict(m)
             self._rom.offsets.append(mem)
-        self._syncMemoryMapList()
+        self._updateMemoryMapList()
 
-    def _syncMemoryMapList(self):
+    def _updateMemoryMapList(self):
         self._memList.clear()
         for mem in self._rom.offsets:
             self._memList.addMemoryMap(mem)
@@ -186,19 +191,97 @@ class Extractor(Qt.QWidget):
         with open(f"{self._rom.filename}.yml", "wt") as f:
             yaml.dump({"mapping": mapping}, f)
 
-    def _onMemoryMapSelected(self):
-        mem = self._memList.selectedMemoryMap()
-        if mem is None:
-            return
+    def _onMemoryMapSelectionChanged(self):
+        # NOTE: Debounce the even in order to sync selection change and
+        #       current item. Else the current item is not uptodate.
+        Qt.QTimer.singleShot(0, self._debouncedMemoryMapSelectionChanged)
 
-        if mem.image_color_mode is None and mem.image_shape is None and mem.image_pixel_order is None:
-            previous = self._lastBySize.get(mem.byte_payload)
-            if previous is not None:
-                mem.image_color_mode = previous.image_color_mode
-                mem.image_shape = previous.image_shape
-                mem.image_pixel_order = previous.image_pixel_order
+    def _debouncedMemoryMapSelectionChanged(self):
+        mems = self._memList.selectedMemoryMaps()
+        if len(mems) == 0:
+            self._updateNoMemoryMapSelected()
+        elif len(mems) == 1:
+            self._updateMemoryMapSelected(mems[0])
+        else:
+            self._updateMultipleMemoryMapSelected(mems)
 
-        self._lastBySize[mem.byte_payload] = mem
+    def _updateNoMemoryMapSelected(self):
+        self._dataTypeList.setEnabled(False)
+        self._colorModeList.setEnabled(False)
+        self._paletteCombo.setEnabled(False)
+        self._shapeList.setEnabled(False)
+        self._pixelOrderList.setEnabled(False)
+        with blockSignals(self._dataTypeList):
+            self._dataTypeList.selectDataType(None)
+        with blockSignals(self._colorModeList):
+            self._colorModeList.selectImageColorMode(None)
+        with blockSignals(self._paletteCombo):
+            self._paletteCombo.selectMemoryMap(None)
+        with blockSignals(self._shapeList):
+            self._shapeList.clear()
+        with blockSignals(self._pixelOrderList):
+            self._pixelOrderList.selectImagePixelOrder(None)
+        self._view.setCurrentWidget(self._nothing)
+
+    def _updateMultipleMemoryMapSelected(self, mems: list[MemoryMap]):
+        """Allow to display and edit as much as possible.
+
+        FIXME: Support display and edition of shape on some conditions
+        """
+        assert self._rom is not None
+        self._dataTypeList.setEnabled(True)
+        self._colorModeList.setEnabled(True)
+        self._paletteCombo.setEnabled(True)
+        self._shapeList.setEnabled(False)
+        self._pixelOrderList.setEnabled(True)
+
+        def uniqueValueElseNone(data: list[typing.Any]):
+            reduced = set(data)
+            if len(reduced) == 1:
+                return data[0]
+            return None
+
+        with blockSignals(self._dataTypeList):
+            reducedDataType = uniqueValueElseNone([m.data_type for m in mems])
+            self._dataTypeList.selectDataType(reducedDataType)
+        with blockSignals(self._colorModeList):
+            reducedColorMode = uniqueValueElseNone([m.image_color_mode for m in mems])
+            self._colorModeList.selectImageColorMode(reducedColorMode)
+        with blockSignals(self._paletteCombo):
+            reducedOffset = uniqueValueElseNone([m.image_palette_offset for m in mems])
+            palette_mem = None
+            if reducedOffset is not None:
+                try:
+                    palette_mem = self._rom.memory_map_from_offset(reducedOffset)
+                except ValueError:
+                    logging.warning("Palette 0x{mem.image_palette_offset:08X} does not exist")
+                    palette_mem = None
+            self._paletteCombo.selectMemoryMap(palette_mem)
+        with blockSignals(self._shapeList):
+            self._shapeList.clear()
+        with blockSignals(self._pixelOrderList):
+            reducedPixelOrder = uniqueValueElseNone([m.image_pixel_order for m in mems])
+            self._pixelOrderList.selectImagePixelOrder(reducedPixelOrder)
+
+        self._updateImage()
+
+    def _updateMemoryMapSelected(self, mem: MemoryMap):
+        assert self._rom is not None
+        self._dataTypeList.setEnabled(True)
+        self._colorModeList.setEnabled(True)
+        self._paletteCombo.setEnabled(True)
+        self._shapeList.setEnabled(True)
+        self._pixelOrderList.setEnabled(True)
+
+        if mem.byte_payload is not None:
+            if mem.image_color_mode is None and mem.image_shape is None and mem.image_pixel_order is None:
+                previous = self._lastBySize.get(mem.byte_payload)
+                if previous is not None:
+                    mem.image_color_mode = previous.image_color_mode
+                    mem.image_shape = previous.image_shape
+                    mem.image_pixel_order = previous.image_pixel_order
+
+            self._lastBySize[mem.byte_payload] = mem
 
         with blockSignals(self._dataTypeList):
             self._dataTypeList.selectDataType(mem.data_type)
@@ -221,58 +304,59 @@ class Extractor(Qt.QWidget):
         with blockSignals(self._pixelOrderList):
             self._pixelOrderList.selectImagePixelOrder(mem.image_pixel_order)
 
-        self._syncShapes()
+        self._updateShapes()
+        self._updateImage()
 
     def _onDataTypeSelected(self):
-        mem = self._memList.selectedMemoryMap()
-        if mem is None:
-            return
-
         dataType = self._dataTypeList.selectedDataType()
         if dataType is None:
             return
-
-        mem.data_type = dataType
+        for mem in self._memList.selectedMemoryMaps():
+            mem.data_type = dataType
         self._updateImage()
 
-    def _syncShapes(self):
-        mem = self._memList.selectedMemoryMap()
-        if mem is None:
-            return
-
-        image_shape = self._rom.image_shape(mem)
-        if image_shape is not None:
-            shapes = guessed_shapes(image_shape[0] * image_shape[1])
+    def _updateShapes(self):
+        mems = self._memList.selectedMemoryMaps()
+        if len(mems) == 0:
+            self._shapeList.setEnabled(False)
             with blockSignals(self._shapeList):
                 self._shapeList.clear()
-                for shape in shapes:
-                    self._shapeList.addShape(shape)
-                self._shapeList.selectShape(image_shape)
-
-        self._updateImage()
+        elif len(mems) == 1:
+            mem = mems[0]
+            self._shapeList.setEnabled(True)
+            image_shape = self._rom.image_shape(mem)
+            with blockSignals(self._shapeList):
+                self._shapeList.clear()
+                if image_shape is not None:
+                    shapes = guessed_shapes(image_shape[0] * image_shape[1])
+                    for shape in shapes:
+                        self._shapeList.addShape(shape)
+                    self._shapeList.selectShape(image_shape)
+        else:
+            self._shapeList.setEnabled(False)
+            with blockSignals(self._shapeList):
+                self._shapeList.clear()
 
     def _onImageColorModeSelected(self):
+        colorMode = self._colorModeList.selectedImageColorMode()
+        for mem in self._memList.selectedMemoryMaps():
+            if mem.image_color_mode == colorMode:
+                continue
+
+            previousImageColorMode = mem.image_color_mode
+            mem.image_color_mode = colorMode
+
+            if mem.image_shape is not None:
+                pnb = 1 if previousImageColorMode in [None, ImageColorMode.INDEXED_8BIT] else 2
+                nb = 1 if colorMode in [None, ImageColorMode.INDEXED_8BIT] else 2
+                if pnb != nb:
+                    mem.image_shape = mem.image_shape[0], int(mem.image_shape[1] * nb / pnb)
+
         mem = self._memList.selectedMemoryMap()
         if mem is None:
             return
-
-        items = self._colorModeList.selectedItems() 
-        if len(items) != 1:
-            return
-        colorMode = items[0].data(Qt.Qt.UserRole)
-        if mem.image_color_mode == colorMode:
-            return
-
-        previousImageColorMode = mem.image_color_mode
-        mem.image_color_mode = colorMode
-
-        if mem.image_shape is not None:
-            pnb = 1 if previousImageColorMode in [None, ImageColorMode.INDEXED_8BIT] else 2
-            nb = 1 if colorMode in [None, ImageColorMode.INDEXED_8BIT] else 2
-            if pnb != nb:
-                mem.image_shape = mem.image_shape[0], int(mem.image_shape[1] * nb / pnb)
-
-        self._syncShapes()
+        self._updateShapes()
+        self._updateImage()
 
     def _onShapeSelected(self):
         mem = self._memList.selectedMemoryMap()
@@ -284,29 +368,22 @@ class Extractor(Qt.QWidget):
         self._updateImage()
 
     def _onImagePixelOrderSelected(self):
-        mem = self._memList.selectedMemoryMap()
-        if mem is None:
-            return
-
         pixelOrder = self._pixelOrderList.selectedImagePixelOrder()
-        mem.image_pixel_order = pixelOrder
+        for mem in self._memList.selectedMemoryMaps():
+            mem.image_pixel_order = pixelOrder
         self._updateImage()
 
     def _onPaletteSelected(self):
-        mem = self._memList.selectedMemoryMap()
-        if mem is None:
-            return
-
         palette_mem = self._paletteCombo.selectedMemoryMap()
-        if palette_mem is None:
-            mem.image_palette_offset = None
-        else:
-            mem.image_palette_offset = palette_mem.byte_offset
-
+        for mem in self._memList.selectedMemoryMaps():
+            if palette_mem is None:
+                mem.image_palette_offset = None
+            else:
+                mem.image_palette_offset = palette_mem.byte_offset
         self._updateImage()
 
     def _updateImage(self):
-        mem = self._memList.selectedMemoryMap()
+        mem = self._memList.currentMemoryMap()
         if mem is None:
             self._view.setCurrentWidget(self._nothing)
             return
