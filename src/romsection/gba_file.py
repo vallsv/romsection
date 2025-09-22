@@ -1,7 +1,6 @@
 import os
 import sys
 import logging
-import yaml
 import enum
 import numpy
 import typing

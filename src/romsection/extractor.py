@@ -1,7 +1,7 @@
 import os
 import sys
 import logging
-import yaml
+import rtoml
 import enum
 import typing
 import numpy
@@ -212,12 +212,17 @@ class Extractor(Qt.QWidget):
             f.write(data.tobytes())
 
     def _loadInfo(self):
-        with open(f"{self._rom.filename}.yml", "rt") as f:
-            data = yaml.safe_load(f)
-        self._rom.offsets.clear()
-        for m in data["mapping"]:
-            mem = MemoryMap.from_dict(m)
-            self._rom.offsets.append(mem)
+        try:
+            with open(f"{self._rom.filename}.toml", "rt") as f:
+                data = rtoml.load(f)
+            self._rom.offsets.clear()
+            for k, v in data.items():
+                if k.startswith("memory_map:"):
+                    mem = MemoryMap.from_dict(v)
+                    self._rom.offsets.append(mem)
+        except Exception:
+            # FIXME: Display it in a dialog
+            logging.error("Error while loading file", exc_info=True)
         self._updateMemoryMapList()
 
     def _updateMemoryMapList(self):
@@ -227,11 +232,15 @@ class Extractor(Qt.QWidget):
         self._paletteList.setObjectList(availablePalettes)
 
     def _saveInfo(self):
-        mapping = []
-        for mem in self._rom.offsets:
-            mapping.append(mem.to_dict())
-        with open(f"{self._rom.filename}.yml", "wt") as f:
-            yaml.dump({"mapping": mapping}, f)
+        try:
+            data = {}
+            for mem in self._rom.offsets:
+                data[f"memory_map:{mem.byte_offset:08X}"] = mem.to_dict()
+            with open(f"{self._rom.filename}.toml", "wt") as f:
+                rtoml.dump(data, f)
+        except Exception:
+            # FIXME: Display it in a dialog
+            logging.error("Error while saving file", exc_info=True)
 
     def _onMemoryMapSelectionChanged(self):
         # NOTE: Debounce the even in order to sync selection change and
