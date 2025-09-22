@@ -21,6 +21,7 @@ from .widgets.data_type_list import DataTypeList
 from .widgets.palette_list_model import PaletteListModel
 from .widgets.combo_box import ComboBox
 from .widgets.palette_combo_box import PaletteComboBox
+from .widgets.gba_rom_header_view import GbaRomHeaderView
 from .gba_file import GBAFile, MemoryMap, ImageColorMode, ImagePixelOrder, DataType
 
 
@@ -105,10 +106,13 @@ class Extractor(Qt.QWidget):
         self._array.setSideHistogramDisplayed(False)
         self._array.getYAxis().setInverted(True)
 
+        self._header = GbaRomHeaderView(self)
+
         self._view = Qt.QStackedLayout()
         self._view.addWidget(self._nothing)
         self._view.addWidget(self._array)
         self._view.addWidget(self._error)
+        self._view.addWidget(self._header)
 
         spriteCodec = Qt.QVBoxLayout()
         spriteCodec.addWidget(self._dataTypeList)
@@ -450,9 +454,14 @@ class Extractor(Qt.QWidget):
             return
 
         try:
-            data = self._readImage(mem)
-            self._array.setImage(data)
-            self._view.setCurrentWidget(self._array)
+            if mem.data_type == DataType.GBA_ROM_HEADER:
+                data = self._rom.extract_raw(mem)
+                self._header.setMemory(data)
+                self._view.setCurrentWidget(self._header)
+            else:
+                data = self._readImage(mem)
+                self._array.setImage(data)
+                self._view.setCurrentWidget(self._array)
         except Exception as e:
             self._error.clear()
             for line in traceback.format_exception(e):

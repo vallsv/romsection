@@ -13,6 +13,7 @@ from .utils import convert_16bx1_to_5bx3, convert_8bx1_to_4bx2, convert_to_tiled
 class DataType(enum.Enum):
     IMAGE = enum.auto()
     PALETTE = enum.auto()
+    GBA_ROM_HEADER = enum.auto()
 
 
 class ImageColorMode(enum.Enum):

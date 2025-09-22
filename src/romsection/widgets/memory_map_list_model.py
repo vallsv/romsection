@@ -20,5 +20,6 @@ class MemoryMapListModel(ObjectListModel):
             mem = self.object(index)
             if mem is None:
                 return ""
-            return f"{mem.byte_offset:08X} {mem.byte_payload: 8d}B"
+            length = mem.byte_payload or mem.byte_length or 0
+            return f"{mem.byte_offset:08X} {length: 8d}B"
         return ObjectListModel.data(self, index, role)

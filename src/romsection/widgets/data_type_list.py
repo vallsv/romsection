@@ -13,6 +13,11 @@ class DataTypeList(Qt.QListWidget):
         self.setResizeMode(Qt.QListView.Fixed)
 
         item = Qt.QListWidgetItem()
+        item.setText(f"GBA ROM header")
+        item.setData(Qt.Qt.UserRole, DataType.GBA_ROM_HEADER)
+        self.addItem(item)
+
+        item = Qt.QListWidgetItem()
         item.setText(f"Image")
         item.setData(Qt.Qt.UserRole, DataType.IMAGE)
         self.addItem(item)
