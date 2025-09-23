@@ -29,6 +29,7 @@ Resources:
 """
 
 import io
+import os
 import numpy
 
 
@@ -59,7 +60,9 @@ def decompress(input_stream: io.RawIOBase) -> numpy.ndarray:
     while pos < decompressed_length:
         types = _read_u8(input_stream)
         for i in range(8):
-            if pos >= decompressed_length:
+            if pos > decompressed_length:
+                raise ValueError("Not a valid GBA LZ77 stream")
+            if pos == decompressed_length:
                 break
             from_history = types & (0x80 >> i)
             if from_history == 0:
@@ -74,13 +77,54 @@ def decompress(input_stream: io.RawIOBase) -> numpy.ndarray:
                     raise ValueError("Not a valid GBA LZ77 stream")
 
                 while length > 0:
-                    cp = min(length, location)
-                    if pos == 0:
-                        # This compression feature is not fully implemented here.
-                        # But it is not considered as safe. It could be dropped.
+                    if location > pos:
+                        cp = min(length, location - pos)
                         result[pos:pos + cp] = 0
                     else:
+                        cp = min(length, location)
                         result[pos:pos + cp] = result[pos - location: pos - location + cp]
                     pos += cp
                     length -= cp
     return result
+
+
+def dryrun(input_stream: io.RawIOBase, min_length: int | None = None, max_length: int | None = None) -> int:
+    """Decompress a data stream without extraction the result.
+
+    It a faster way to check the validity and get the size of the block.
+    """
+    magic = _read_u8(input_stream)
+    if magic != 0x10:
+        raise ValueError("Not a valid GBA LZ77 stream")
+
+    decompressed_length = _read_u24_little(input_stream)
+    if decompressed_length == 0:
+        raise ValueError("Not a valid GBA LZ77 stream")
+    if max_length is not None and decompressed_length > max_length:
+        raise RuntimeError(f"Found size of {decompressed_length}, which is bigger than the expected limits")
+    if min_length is not None and decompressed_length < min_length:
+        raise RuntimeError(f"Found size of {decompressed_length}, which is smaller than the expected limits")
+
+    pos = 0
+    while pos < decompressed_length:
+        types = _read_u8(input_stream)
+        for i in range(8):
+            if pos > decompressed_length:
+                raise ValueError("Not a valid GBA LZ77 stream")
+            if pos == decompressed_length:
+                break
+            from_history = types & (0x80 >> i)
+            if from_history == 0:
+                input_stream.seek(1, os.SEEK_CUR)
+                pos += 1
+            else:
+                value = input_stream.read(2)
+                length = (value[0] >> 4) + 3
+
+                if pos + length > decompressed_length:
+                    raise ValueError("Not a valid GBA LZ77 stream")
+
+                pos += length
+    if pos != decompressed_length:
+        raise ValueError("Not a valid GBA LZ77 stream")
+    return decompressed_length

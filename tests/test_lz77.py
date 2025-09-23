@@ -1,6 +1,6 @@
 import io
 import numpy
-from romsection.lz77 import decompress
+from romsection.lz77 import decompress, dryrun
 
 
 def test_lz77():
@@ -19,6 +19,7 @@ def test_lz77():
         [0, 0, 0, 0, 0, 0, 0, 0],
     ]
     numpy.testing.assert_allclose(result, expected)
+    assert dryrun(io.BytesIO(data)) == 8 * 6
 
 
 def test_lz77_with_empty_window():
@@ -38,3 +39,4 @@ def test_lz77_with_empty_window():
         [0, 0, 0, 0, 0, 0, 0, 0],
     ]
     numpy.testing.assert_allclose(result, expected)
+    assert dryrun(io.BytesIO(data)) == 8 * 6
