@@ -141,8 +141,12 @@ class Extractor(Qt.QWidget):
         self._paletteList.setRom(self._rom)
 
     def _scanAll(self):
-        self._rom.scan_all()
-        self._syncSpriteList()
+        Qt.QGuiApplication.setOverrideCursor(Qt.QCursor(Qt.Qt.WaitCursor))
+        try:
+            self._rom.scan_all()
+            self._updateMemoryMapList()
+        finally:
+            Qt.QGuiApplication.restoreOverrideCursor()
 
     def _showSpriteContextMenu(self, pos: Qt.QPoint):
         globalPos = self._memView.mapToGlobal(pos)
