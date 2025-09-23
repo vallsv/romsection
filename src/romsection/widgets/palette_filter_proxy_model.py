@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import numpy
+import typing
 import lru
 from PyQt5 import Qt
 
@@ -44,13 +45,23 @@ def createPaletteIcon(rom: GBAFile, mem: MemoryMap) -> Qt.QIcon:
     return Qt.QIcon(pixmap)
 
 
-class PaletteListModel(ObjectListModel):
+class PaletteFilterProxyModel(Qt.QSortFilterProxyModel):
     def __init__(self, parent: Qt.QObject | None = None):
-        ObjectListModel.__init__(self, parent=parent)
+        Qt.QSortFilterProxyModel.__init__(self, parent=parent)
         self._rom: GBAFile | None = None
 
     def setRom(self, rom: GBAFile):
         self._rom = rom
+
+    def objectIndex(self, obj: typing.Any) -> Qt.QModelIndex:
+        sourceModel = self.sourceModel()
+        sourceIndex = sourceModel.objectIndex(obj)
+        if not sourceIndex.isValid():
+            return sourceIndex
+        return self.mapFromSource(sourceIndex)
+
+    def object(self, index: Qt.QModelIndex) -> typing.Any:
+        return self.data(index, role=ObjectListModel.ObjectRole)
 
     def data(self, index: Qt.QModelIndex, role: int = Qt.Qt.DisplayRole):
         global _palettePreview
@@ -75,4 +86,12 @@ class PaletteListModel(ObjectListModel):
                 icon = createPaletteIcon(self._rom, mem)
                 _palettePreview[mem.byte_offset] = icon
             return icon
-        return ObjectListModel.data(self, index, role)
+        return Qt.QSortFilterProxyModel.data(self, index, role)
+
+    def filterAcceptsRow(self, source_row: int, source_parent: Qt.QModelIndex) -> bool:
+        sourceModel = self.sourceModel()
+        index = sourceModel.index(source_row, 0, source_parent)
+        if not index.isValid():
+            return True
+        mem = sourceModel.data(index, role=ObjectListModel.ObjectRole)
+        return mem.data_type == DataType.PALETTE

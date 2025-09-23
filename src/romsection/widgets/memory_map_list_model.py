@@ -10,9 +10,6 @@ from ..gba_file import MemoryMap
 
 
 class MemoryMapListModel(ObjectListModel):
-    def __init__(self, parent: Qt.QObject | None = None):
-        ObjectListModel.__init__(self, parent=parent)
-
     def data(self, index: Qt.QModelIndex, role: int = Qt.Qt.DisplayRole):
         if role in (Qt.Qt.DisplayRole, Qt.Qt.EditRole):
             if not index.isValid():

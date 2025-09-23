@@ -18,7 +18,7 @@ from .widgets.image_color_mode_list import ImageColorModeList
 from .widgets.shape_list import ShapeList
 from .widgets.image_pixel_order_list import ImagePixelOrderList
 from .widgets.data_type_list import DataTypeList
-from .widgets.palette_list_model import PaletteListModel
+from .widgets.palette_filter_proxy_model import PaletteFilterProxyModel
 from .widgets.combo_box import ComboBox
 from .widgets.palette_combo_box import PaletteComboBox
 from .widgets.gba_rom_header_view import GbaRomHeaderView
@@ -47,8 +47,9 @@ class Extractor(Qt.QWidget):
         self._rom: GBAFile | None = None
 
         self._lastBySize: dict[int, MemoryMap] = {}
-        self._paletteList =  PaletteListModel(self)
         self._memoryMapList = MemoryMapListModel(self)
+        self._paletteList =  PaletteFilterProxyModel(self)
+        self._paletteList.setSourceModel(self._memoryMapList)
 
         toolbar = Qt.QVBoxLayout()
         scanAll = Qt.QPushButton(self)
@@ -231,9 +232,6 @@ class Extractor(Qt.QWidget):
 
     def _updateMemoryMapList(self):
         self._memoryMapList.setObjectList(self._rom.offsets)
-        availablePalettes = self._rom.palettes()
-        availablePalettes.insert(0, None)
-        self._paletteList.setObjectList(availablePalettes)
 
     def _saveInfo(self):
         try:
@@ -359,6 +357,8 @@ class Extractor(Qt.QWidget):
             return
         for mem in self._memView.selectedMemoryMaps():
             mem.data_type = dataType
+            index = self._memoryMapList.objectIndex(mem)
+            self._memoryMapList.dataChanged.emit(index, index)
 
         self._updateShapes()
         self._updateImage()
