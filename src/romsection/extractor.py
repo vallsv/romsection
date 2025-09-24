@@ -8,7 +8,6 @@ import numpy
 import traceback
 import contextlib
 from PyQt5 import Qt
-from silx.gui.plot.ImageView import ImageView
 
 from .lz77 import decompress as decompress_lz77
 from .utils import prime_factors, guessed_shapes
@@ -22,6 +21,7 @@ from .widgets.palette_filter_proxy_model import PaletteFilterProxyModel
 from .widgets.combo_box import ComboBox
 from .widgets.palette_combo_box import PaletteComboBox
 from .widgets.gba_rom_header_view import GbaRomHeaderView
+from .widgets.sprite_view import SpriteView
 from .gba_file import GBAFile, MemoryMap, ImageColorMode, ImagePixelOrder, DataType
 
 
@@ -102,16 +102,13 @@ class Extractor(Qt.QWidget):
         self._error.setReadOnly(True)
         self._error.setStyleSheet(".QTextEdit { color: red; }")
 
-        self._array = ImageView(self, backend="gl")
-        self._array.setKeepDataAspectRatio(True)
-        self._array.setSideHistogramDisplayed(False)
-        self._array.getYAxis().setInverted(True)
+        self._image = SpriteView(self)
 
         self._header = GbaRomHeaderView(self)
 
         self._view = Qt.QStackedLayout()
         self._view.addWidget(self._nothing)
-        self._view.addWidget(self._array)
+        self._view.addWidget(self._image)
         self._view.addWidget(self._error)
         self._view.addWidget(self._header)
 
@@ -464,9 +461,10 @@ class Extractor(Qt.QWidget):
                 self._view.setCurrentWidget(self._header)
             else:
                 data = self._readImage(mem)
-                self._array.setImage(data)
-                self._view.setCurrentWidget(self._array)
+                self._image.setData(data)
+                self._view.setCurrentWidget(self._image)
         except Exception as e:
+            self._image.setData(None)
             self._error.clear()
             for line in traceback.format_exception(e):
                 self._error.append(line)
