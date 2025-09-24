@@ -8,7 +8,6 @@ from PyQt5 import Qt
 
 from .object_list_model import ObjectListModel
 from ..gba_file import GBAFile, MemoryMap, DataType
-from ..array_utils import convert_16bx1_to_5bx3
 
 
 _palettePreview: lru.LRU[int, Qt.QIcon] = lru.LRU(512)
