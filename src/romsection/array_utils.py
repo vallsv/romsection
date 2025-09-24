@@ -51,3 +51,24 @@ def convert_16bx1_to_5bx3(data: numpy.ndarray) -> numpy.ndarray:
     hi = (data >> 10) & 0x1F
     data = numpy.stack((lo, mid, hi), dtype=numpy.uint8).T.reshape(-1)
     return numpy.ascontiguousarray(data)
+
+
+def convert_a1rgb15_to_argb32(data: numpy.ndarray, use_alpha: bool = False) -> numpy.ndarray:
+    """
+    Convert each uint16 (1, 5, 5, 5 bits) into ARGB (8, 8, 8, 8 bits).
+
+    Arguments:
+        use_alpha: If true, read the alpha channel from the source.
+    """
+    def convert_uint5_to_uint8(d):
+        return (d *0xFF // 0x1F).astype(numpy.uint8)
+    data = data.view(numpy.uint16)
+    if use_alpha:
+        alpha = ((((data & 0x8000)) != 0) * 0xFF).astype(numpy.uint8)
+    else:
+        alpha = numpy.full(data.size, 0xFF, dtype=numpy.uint8)
+    lo = convert_uint5_to_uint8(data & 0x1F)
+    mid = convert_uint5_to_uint8((data >> 5) & 0x1F)
+    hi = convert_uint5_to_uint8((data >> 10) & 0x1F)
+    data = numpy.stack((hi, mid, lo, alpha), dtype=numpy.uint8).T
+    return numpy.ascontiguousarray(data)

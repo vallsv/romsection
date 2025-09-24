@@ -7,7 +7,7 @@ import typing
 import dataclasses
 
 from .lz77 import decompress as decompress_lz77
-from .array_utils import convert_16bx1_to_5bx3, convert_8bx1_to_4bx2, convert_to_tiled_8x8
+from .array_utils import convert_a1rgb15_to_argb32, convert_8bx1_to_4bx2, convert_to_tiled_8x8
 
 
 class DataType(enum.Enum):
@@ -193,7 +193,7 @@ class GBAFile:
 
         Return a 3D array, indexed by palette index, then color index, then RGB components.
 
-        The RBG values are in range of 0..1.
+        The RBG values are in range of 0..255.
 
         Raises:
             ValueError: If the memory can't be read as a palette.
@@ -207,10 +207,8 @@ class GBAFile:
             raise ValueError(f"Memory map 0x{mem.byte_offset:08X} don't have the right size")
 
         nb = data.size // 32
-        data = data.view(numpy.uint16)
-        data = convert_16bx1_to_5bx3(data)
-        data = data / 0x1F
-        data.shape = nb, -1, 3
+        data = convert_a1rgb15_to_argb32(data)
+        data.shape = nb, -1, 4
         return data
 
     def guess_first_image_shape(self, data) -> tuple[int, int]:

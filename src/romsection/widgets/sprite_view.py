@@ -47,12 +47,12 @@ class SpriteView(Qt.QWidget):
                 data.shape[0],
                 Qt.QImage.Format_RGB888,
             )
-        elif len(data.shape) == 3 and data.shape[2] == 3 and data.dtype.kind == "f":
+        elif len(data.shape) == 3 and data.shape[2] == 4 and data.dtype == numpy.uint8:
             image = Qt.QImage(
-                (data * 255).astype(numpy.uint8).tobytes(),
+                data.tobytes(),
                 data.shape[1],
                 data.shape[0],
-                Qt.QImage.Format_RGB888,
+                Qt.QImage.Format_ARGB32,
             )
         else:
             raise ValueError(f"Shape {data.shape} {data.dtype} {data.dtype.type} is not supported")
