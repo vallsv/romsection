@@ -52,6 +52,7 @@ class Extractor(Qt.QWidget):
         self._paletteList.setSourceModel(self._memoryMapList)
 
         toolbar = Qt.QVBoxLayout()
+        toolbar.setContentsMargins(0, 0, 0, 0)
         scanAll = Qt.QPushButton(self)
         scanAll.clicked.connect(self._scanAll)
         scanAll.setText("Scan All")
@@ -113,6 +114,7 @@ class Extractor(Qt.QWidget):
         self._view.addWidget(self._header)
 
         spriteCodec = Qt.QVBoxLayout()
+        spriteCodec.setContentsMargins(0, 0, 0, 0)
         spriteCodec.addWidget(self._dataTypeList)
         spriteCodec.addWidget(self._colorModeList)
         spriteCodec.addWidget(self._paletteCombo)
