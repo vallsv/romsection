@@ -7,7 +7,7 @@ import typing
 import dataclasses
 
 from .lz77 import decompress as decompress_lz77
-from .utils import convert_16bx1_to_5bx3, convert_8bx1_to_4bx2, convert_to_tiled_8x8
+from .array_utils import convert_16bx1_to_5bx3, convert_8bx1_to_4bx2, convert_to_tiled_8x8
 
 
 class DataType(enum.Enum):

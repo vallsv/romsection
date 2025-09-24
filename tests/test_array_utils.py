@@ -1,5 +1,5 @@
 import numpy
-from romsection.utils import convert_8bx1_to_4bx2, convert_to_tiled_8x8, convert_16bx1_to_5bx3
+from romsection.array_utils import convert_8bx1_to_4bx2, convert_to_tiled_8x8, convert_16bx1_to_5bx3
 
 
 def test_convert_8bx1_to_4bx2():
