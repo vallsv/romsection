@@ -12,12 +12,28 @@ class ObjectListModel(Qt.QAbstractItemModel):
 
     def __init__(self, parent: Qt.QObject | None = None):
         super().__init__(parent=parent)
-        self.__items: list[object] = []
+        self.__items: list[typing.Any] = []
 
     def setObjectList(self, items: list[typing.Any]):
         self.beginResetModel()
-        self.__items = list(items)
+        self.__items = items
         self.endResetModel()
+
+    def setObject(self, index: int, obj: typing.Any):
+        """Replace an existing item of this list"""
+        self.__items[index] = obj
+        self.dataChanged.emit(index, index)
+
+    def updatedObject(self, obj: typing.Any):
+        """To be called when a mutable item was changed"""
+        index = self.objectIndex(obj)
+        self.dataChanged.emit(index, index)
+
+    def removeObject(self, obj: typing.Any):
+        index = self.__items.index(obj)
+        self.beginRemoveRows(Qt.QModelIndex(), index, index)
+        del self.__items[index]
+        self.endRemoveRows()
 
     def rowCount(self, parent: Qt.QModelIndex = Qt.QModelIndex()):
         return len(self.__items)

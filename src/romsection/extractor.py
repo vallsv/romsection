@@ -151,17 +151,48 @@ class Extractor(Qt.QWidget):
         globalPos = self._memView.mapToGlobal(pos)
         menu = Qt.QMenu(self)
 
-        saveRaw = Qt.QAction(menu)
-        saveRaw.setText("Save as raw...")
-        saveRaw.triggered.connect(self._saveMemoryMapAsRaw)
-        menu.addAction(saveRaw)
+        mems = self._memView.selectedMemoryMaps()
 
-        saveDat = Qt.QAction(menu)
-        saveDat.setText("Save as dat...")
-        saveDat.triggered.connect(self._saveMemoryMapAsDat)
-        menu.addAction(saveDat)
+        remove = Qt.QAction(menu)
+        remove.setText("Remove memory map")
+        remove.triggered.connect(self._removeMemoryMap)
+        menu.addAction(remove)
+
+        if len(mems) == 1:
+            saveRaw = Qt.QAction(menu)
+            saveRaw.setText("Save as raw...")
+            saveRaw.triggered.connect(self._saveMemoryMapAsRaw)
+            menu.addAction(saveRaw)
+
+            saveDat = Qt.QAction(menu)
+            saveDat.setText("Save as dat...")
+            saveDat.triggered.connect(self._saveMemoryMapAsDat)
+            menu.addAction(saveDat)
 
         menu.exec(globalPos)
+
+    def _removeMemoryMap(self):
+        """Save the memory as it is stored (compressed) into a file"""
+        mems = self._memView.selectedMemoryMaps()
+        if len(mems) == 0:
+            return
+
+        if len(mems) == 1:
+            msg = f"the memory map {mems[0].byte_offset:08X}"
+        else:
+            msg = f"{len(mems)} memory maps"
+
+        button = Qt.QMessageBox.question(
+            None,
+            "Confirm remove",
+            f"Do you really want to remove {msg}?",
+            Qt.QMessageBox.Yes | Qt.QMessageBox.No,
+        )
+        if button != Qt.QMessageBox.Yes:
+            return
+
+        for mem in mems:
+            self._memoryMapList.removeObject(mem)
 
     def _saveMemoryMapAsRaw(self):
         """Save the memory as it is stored (compressed) into a file"""
@@ -360,8 +391,7 @@ class Extractor(Qt.QWidget):
             return
         for mem in self._memView.selectedMemoryMaps():
             mem.data_type = dataType
-            index = self._memoryMapList.objectIndex(mem)
-            self._memoryMapList.dataChanged.emit(index, index)
+            self._memoryMapList.updatedObject(mem)
 
         self._updateShapes()
         self._updateImage()
