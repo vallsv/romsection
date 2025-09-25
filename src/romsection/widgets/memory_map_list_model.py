@@ -6,7 +6,7 @@ import lru
 from PyQt5 import Qt
 
 from .object_list_model import ObjectListModel
-from ..gba_file import MemoryMap
+from ..gba_file import MemoryMap, DataType
 
 
 class MemoryMapListModel(ObjectListModel):
@@ -19,4 +19,18 @@ class MemoryMapListModel(ObjectListModel):
                 return ""
             length = mem.byte_payload or mem.byte_length or 0
             return f"{mem.byte_offset:08X} {length: 8d}B"
+
+        if role == Qt.Qt.DecorationRole:
+            if not index.isValid():
+                return Qt.QIcon()
+            mem = self.object(index)
+            if mem is None:
+                return Qt.QIcon()
+            if mem.data_type == DataType.IMAGE:
+                return Qt.QIcon("icons:image.png")
+            if mem.data_type == DataType.PALETTE:
+                return Qt.QIcon("icons:palette.png")
+
+            return Qt.QIcon("icons:empty.png")
+
         return ObjectListModel.data(self, index, role)

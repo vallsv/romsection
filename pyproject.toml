@@ -18,3 +18,8 @@ dev = [
     "mypy",
     "PyQt5-stubs",
 ]
+
+[tool.setuptools.package-data]
+"romsection.resources" = [
+    "icons/*.png",
+]

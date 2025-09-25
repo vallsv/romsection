@@ -7,6 +7,7 @@ class MemoryMapListView(Qt.QListView):
     def __init__(self, parent: Qt.QWidget | None = None):
         Qt.QListWidget.__init__(self, parent)
         self.setUniformItemSizes(True)
+        self.setIconSize(Qt.QSize(16, 16))
 
     def selectedMemoryMap(self) -> MemoryMap | None:
         model = self.selectionModel()
