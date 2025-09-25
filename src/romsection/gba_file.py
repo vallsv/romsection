@@ -77,10 +77,11 @@ class MemoryMap:
     def to_dict(self) -> dict[str, typing.Any]:
         description:  dict[str, typing.Any] = {
             "byte_offset": self.byte_offset,
-            "byte_payload": self.byte_payload,
         }
         if self.byte_length is not None:
             description["byte_length"] = self.byte_length
+        if self.byte_payload is not None:
+            description["byte_payload"] = self.byte_payload
         if self.data_type is not None:
             description["data_type"] = self.data_type.name
         if self.image_shape is not None:
