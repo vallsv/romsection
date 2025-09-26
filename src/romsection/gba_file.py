@@ -1,18 +1,27 @@
 import os
+import io
 import sys
 import logging
 import enum
+import time
 import numpy
 import typing
 import dataclasses
 
 from .lz77 import decompress as decompress_lz77
+from .lz77 import dryrun as dryrun_lz77
 from .array_utils import convert_a1rgb15_to_argb32, convert_8bx1_to_4bx2, convert_to_tiled_8x8
+
+
+class ByteCodec(enum.Enum):
+    RAW = enum.auto()
+    LZ77 = enum.auto()
 
 
 class DataType(enum.Enum):
     IMAGE = enum.auto()
     PALETTE = enum.auto()
+    UNKNOWN = enum.auto()
     GBA_ROM_HEADER = enum.auto()
 
 
@@ -36,6 +45,11 @@ class MemoryMap:
     Size of this memory map in  the ROM.
 
     None means it is not yet precisly identified, for example if compressed.
+    """
+
+    byte_codec: ByteCodec | None = None
+    """
+    Codec use to store the data.
     """
 
     byte_payload: int | None = None
@@ -78,6 +92,8 @@ class MemoryMap:
         description:  dict[str, typing.Any] = {
             "byte_offset": self.byte_offset,
         }
+        if self.byte_codec is not None:
+            description["byte_codec"] = self.byte_codec.name
         if self.byte_length is not None:
             description["byte_length"] = self.byte_length
         if self.byte_payload is not None:
@@ -96,6 +112,9 @@ class MemoryMap:
 
     @staticmethod
     def from_dict(description: dict[str, typing.Any]):
+        byte_codec = description.get("byte_codec")
+        if byte_codec is not None:
+            byte_codec = ByteCodec[byte_codec]
         byte_offset = description["byte_offset"]
         byte_length = description.get("byte_length")
         byte_payload = description.get("byte_payload")
@@ -114,6 +133,7 @@ class MemoryMap:
             image_pixel_order = ImagePixelOrder[image_pixel_order]
         return MemoryMap(
             byte_offset=byte_offset,
+            byte_codec=byte_codec,
             byte_length=byte_length,
             byte_payload=byte_payload,
             data_type=data_type,
@@ -154,25 +174,42 @@ class GBAFile:
     def size(self):
         return self._size
 
-    def scan_all(self):
+    def scan_all(self, skip_valid_blocks=False):
         self.offsets.clear()
         f = self._f
         f.seek(0, os.SEEK_SET)
         offset = 0
+        stream = f
         while offset < self._size:
             try:
-                data = decompress_lz77(f)
+                size = dryrun_lz77(
+                    stream,
+                    min_length=16,
+                    max_length=600*400*2,
+                )
             except ValueError:
-                pass
+                size = None
+            except RuntimeError:
+                logging.warning(f"{offset:08X}h skipped")
+                size = None
             else:
                 mem = MemoryMap(
-                    offset,
-                    data.size,
+                    byte_offset=offset,
+                    byte_length=stream.tell() - offset,
+                    byte_payload=size,
+                    byte_codec=ByteCodec.LZ77,
                     data_type=DataType.IMAGE,
                 )
                 self.offsets.append(mem)
-            offset += 1
-            f.seek(offset, os.SEEK_SET)
+            if not skip_valid_blocks:
+                offset += 1
+                stream.seek(offset, os.SEEK_SET)
+            else:
+                if size is None:
+                    offset += 1
+                    stream.seek(offset, os.SEEK_SET)
+                else:
+                    offset += size
 
     def extract_raw(self, mem: MemoryMap) -> bytes:
         f = self._f
@@ -188,6 +225,19 @@ class GBAFile:
         mem.byte_length = offset_end - mem.byte_offset
         return result
 
+    def extract_data(self, mem: MemoryMap) -> numpy.ndarray:
+        """
+        Return data after byte codec decompression.
+
+        FIXME: Return bytes instead.
+        """
+        if mem.byte_codec in [None, ByteCodec.RAW]:
+            raw = self.extract_raw(mem)
+            result = numpy.frombuffer(raw, dtype=numpy.uint8)
+        elif mem.byte_codec == ByteCodec.LZ77:
+            result = self.extract_lz77(mem)
+        return result
+
     def palette_data(self, mem: MemoryMap) -> numpy.ndarray:
         """
         Return palette data from a memory map.
@@ -199,7 +249,7 @@ class GBAFile:
         Raises:
             ValueError: If the memory can't be read as a palette.
         """
-        data = self.extract_lz77(mem)
+        data = self.extract_data(mem)
 
         if mem.data_type != DataType.PALETTE:
             raise ValueError(f"Memory map 0x{mem.byte_offset:08X} is not a palette")
@@ -212,15 +262,15 @@ class GBAFile:
         data.shape = nb, -1, 4
         return data
 
-    def guess_first_image_shape(self, data) -> tuple[int, int]:
-        if data.size == 240 * 160:
+    def guess_first_image_shape(self, nb_pixels) -> tuple[int, int]:
+        if nb_pixels == 240 * 160:
             # LCD mode
             return 160, 240
-        if data.size == 160 * 128:
+        if nb_pixels == 160 * 128:
             # LCD mode
             return 128, 160
         # FIXME: Guess something closer to a square
-        return 1, data.size
+        return 1, nb_pixels
 
     def image_shape(self, mem: MemoryMap) -> tuple[int, int] | None:
         """Only return the image shape.
@@ -230,20 +280,30 @@ class GBAFile:
         if mem.data_type != DataType.IMAGE:
             return None
 
-        data = self.extract_lz77(mem)
+        if mem.byte_payload is None:
+            if mem.byte_codec in [None, ByteCodec.RAW]:
+                if mem.byte_length is None:
+                    raise ValueError(f"Memory map 0x{mem.byte_offset:08X} have inconcistente description")
+                size = mem.byte_length
+            elif mem.byte_codec == ByteCodec.LZ77:
+                f = self._f
+                f.seek(mem.byte_offset, os.SEEK_SET)
+                try:
+                    size = dryrun_lz77(f)
+                except Exception:
+                    return None
+            else:
+                raise ValueError(f"Memory map 0x{mem.byte_offset:08X} have inconcistente description")
+        else:
+            size = mem.byte_payload
 
         if mem.image_color_mode == ImageColorMode.INDEXED_4BIT:
-            data = convert_8bx1_to_4bx2(data)
+            size *= 2
 
         if mem.image_shape is not None:
-            try:
-                data.shape = mem.image_shape
-            except Exception:
-                data.shape = self.guess_first_image_shape(data)
+            return mem.image_shape
         else:
-            data.shape = self.guess_first_image_shape(data)
-
-        return data.shape
+            return self.guess_first_image_shape(size)
 
     def image_data(self, mem: MemoryMap) -> numpy.ndarray:
         """
@@ -259,7 +319,7 @@ class GBAFile:
         if mem.data_type != DataType.IMAGE:
             raise ValueError(f"Memory map 0x{mem.byte_offset:08X} is not an image")
 
-        data = self.extract_lz77(mem)
+        data = self.extract_data(mem)
 
         if mem.image_color_mode == ImageColorMode.INDEXED_4BIT:
             data = convert_8bx1_to_4bx2(data)
@@ -268,9 +328,9 @@ class GBAFile:
             try:
                 data.shape = mem.image_shape
             except Exception:
-                data.shape = self.guess_first_image_shape(data)
+                data.shape = self.guess_first_image_shape(data.size)
         else:
-            data.shape = self.guess_first_image_shape(data)
+            data.shape = self.guess_first_image_shape(data.size)
 
         if mem.image_pixel_order == ImagePixelOrder.TILED_8X8:
             if data.shape[0] % 8 != 0 or data.shape[1] % 8 != 0:

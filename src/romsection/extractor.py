@@ -16,6 +16,7 @@ from .widgets.memory_map_list_model import MemoryMapListModel
 from .widgets.image_color_mode_list import ImageColorModeList
 from .widgets.shape_list import ShapeList
 from .widgets.image_pixel_order_list import ImagePixelOrderList
+from .widgets.byte_codec_list import ByteCodecList
 from .widgets.data_type_list import DataTypeList
 from .widgets.palette_filter_proxy_model import PaletteFilterProxyModel
 from .widgets.combo_box import ComboBox
@@ -88,6 +89,9 @@ class Extractor(Qt.QWidget):
         self._memView.customContextMenuRequested.connect(self._showSpriteContextMenu)
         self._memView.setSelectionMode(Qt.QAbstractItemView.ExtendedSelection)
 
+        self._byteCodecList = ByteCodecList(self)
+        self._byteCodecList.itemSelectionChanged.connect(self._onByteCodecSelected)
+
         self._dataTypeList = DataTypeList(self)
         self._dataTypeList.itemSelectionChanged.connect(self._onDataTypeSelected)
 
@@ -131,11 +135,13 @@ class Extractor(Qt.QWidget):
 
         spriteCodec = Qt.QVBoxLayout()
         spriteCodec.setContentsMargins(0, 0, 0, 0)
+        spriteCodec.addWidget(self._byteCodecList)
         spriteCodec.addWidget(self._dataTypeList)
         spriteCodec.addWidget(self._colorModeList)
         spriteCodec.addWidget(self._paletteCombo)
         spriteCodec.addWidget(self._shapeList)
         spriteCodec.addWidget(self._pixelOrderList)
+        spriteCodec.setStretchFactor(self._byteCodecList, 0)
         spriteCodec.setStretchFactor(self._dataTypeList, 0)
         spriteCodec.setStretchFactor(self._paletteCombo, 0)
         spriteCodec.setStretchFactor(self._colorModeList, 0)
@@ -293,7 +299,7 @@ class Extractor(Qt.QWidget):
         if not result:
             return
 
-        data = self._rom.extract_lz77(mem)
+        data = self._rom.extract_data(mem)
 
         filename = dialog.selectedFiles()[0]
         with open(filename, "wb") as f:
@@ -388,11 +394,14 @@ class Extractor(Qt.QWidget):
             self._updateMultipleMemoryMapSelected(mems)
 
     def _updateNoMemoryMapSelected(self):
+        self._byteCodecList.setEnabled(False)
         self._dataTypeList.setEnabled(False)
         self._colorModeList.setEnabled(False)
         self._paletteCombo.setEnabled(False)
         self._shapeList.setEnabled(False)
         self._pixelOrderList.setEnabled(False)
+        with blockSignals(self._byteCodecList):
+            self._byteCodecList.selectByteCodec(None)
         with blockSignals(self._dataTypeList):
             self._dataTypeList.selectDataType(None)
         with blockSignals(self._colorModeList):
@@ -410,11 +419,16 @@ class Extractor(Qt.QWidget):
         Allow to display and edit as much as possible.
         """
         assert self._rom is not None
+        self._byteCodecList.setEnabled(True)
         self._dataTypeList.setEnabled(True)
         self._colorModeList.setEnabled(True)
         self._paletteCombo.setEnabled(True)
         self._pixelOrderList.setEnabled(True)
 
+
+        with blockSignals(self._byteCodecList):
+            reducedByteCodec = uniqueValueElseNone([m.byte_codec for m in mems])
+            self._byteCodecList.selectByteCodec(reducedByteCodec)
         with blockSignals(self._dataTypeList):
             reducedDataType = uniqueValueElseNone([m.data_type for m in mems])
             self._dataTypeList.selectDataType(reducedDataType)
@@ -440,6 +454,7 @@ class Extractor(Qt.QWidget):
 
     def _updateMemoryMapSelected(self, mem: MemoryMap):
         assert self._rom is not None
+        self._byteCodecList.setEnabled(True)
         self._dataTypeList.setEnabled(True)
         self._colorModeList.setEnabled(True)
         self._paletteCombo.setEnabled(True)
@@ -455,6 +470,9 @@ class Extractor(Qt.QWidget):
                     mem.image_pixel_order = previous.image_pixel_order
 
             self._lastBySize[mem.byte_payload] = mem
+
+        with blockSignals(self._byteCodecList):
+            self._byteCodecList.selectByteCodec(mem.byte_codec)
 
         with blockSignals(self._dataTypeList):
             self._dataTypeList.selectDataType(mem.data_type)
@@ -476,6 +494,18 @@ class Extractor(Qt.QWidget):
 
         with blockSignals(self._pixelOrderList):
             self._pixelOrderList.selectImagePixelOrder(mem.image_pixel_order)
+
+        self._updateShapes()
+        self._updateImage()
+
+    def _onByteCodecSelected(self):
+        byteCodec = self._byteCodecList.selectedByteCodec()
+        if byteCodec is None:
+            return
+        for mem in self._memView.selectedMemoryMaps():
+            mem.byte_codec = byteCodec
+            mem.byte_payload = None
+            self._memoryMapList.updatedObject(mem)
 
         self._updateShapes()
         self._updateImage()
