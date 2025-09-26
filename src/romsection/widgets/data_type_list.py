@@ -30,6 +30,12 @@ class DataTypeList(Qt.QListWidget):
         item.setIcon(Qt.QIcon("icons:palette.png"))
         self.addItem(item)
 
+        item = Qt.QListWidgetItem()
+        item.setText(f"Unknown")
+        item.setData(Qt.Qt.UserRole, DataType.UNKNOWN)
+        item.setIcon(Qt.QIcon("icons:unknown.png"))
+        self.addItem(item)
+
         rect = self.visualItemRect(item)
         self.setMaximumHeight(rect.height() * self.count() + 4)
 

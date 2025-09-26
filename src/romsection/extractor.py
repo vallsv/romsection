@@ -22,6 +22,7 @@ from .widgets.combo_box import ComboBox
 from .widgets.palette_combo_box import PaletteComboBox
 from .widgets.gba_rom_header_view import GbaRomHeaderView
 from .widgets.sprite_view import SpriteView
+from .widgets.hexa_view import HexaView
 from .gba_file import GBAFile, MemoryMap, ImageColorMode, ImagePixelOrder, DataType
 
 
@@ -68,6 +69,16 @@ class Extractor(Qt.QWidget):
         saveInfo.setText("Save Info")
         toolbar.addWidget(saveInfo)
 
+        extractUnknown = Qt.QPushButton(self)
+        extractUnknown.clicked.connect(self._extractUnknown)
+        extractUnknown.setText("Extract unknown")
+        toolbar.addWidget(extractUnknown)
+
+        removeUnknown = Qt.QPushButton(self)
+        removeUnknown.clicked.connect(self._removeUnknown)
+        removeUnknown.setText("Remove unknown")
+        toolbar.addWidget(removeUnknown)
+
         toolbar.addStretch(1)
 
         self._memView = MemoryMapListView(self)
@@ -107,11 +118,14 @@ class Extractor(Qt.QWidget):
 
         self._header = GbaRomHeaderView(self)
 
+        self._hexa = HexaView(self)
+
         self._view = Qt.QStackedLayout()
         self._view.addWidget(self._nothing)
         self._view.addWidget(self._image)
         self._view.addWidget(self._error)
         self._view.addWidget(self._header)
+        self._view.addWidget(self._hexa)
 
         spriteCodec = Qt.QVBoxLayout()
         spriteCodec.setContentsMargins(0, 0, 0, 0)
@@ -134,6 +148,39 @@ class Extractor(Qt.QWidget):
         main.setStretchFactor(self._view, 1)
 
         self._updateNoMemoryMapSelected()
+
+    def _extractUnknown(self):
+        offsets = list(self._rom.offsets)
+        # offsets = sorted(offsets, keys=lambda v: v.byte_offset)
+        mem_end = MemoryMap(
+            byte_offset=self._rom.size,
+            byte_length=1,
+            data_type=DataType.UNKNOWN,
+        )
+        offsets.append(mem_end)
+
+        current_offset = 0
+        index = 0
+        for offset in offsets:
+            if offset.byte_offset < current_offset:
+                index += 1
+                continue
+            if current_offset != offset.byte_offset:
+                length = offset.byte_offset - current_offset
+                mem = MemoryMap(
+                    byte_offset=current_offset,
+                    byte_length=length,
+                    data_type=DataType.UNKNOWN,
+                )
+                self._memoryMapList.insertObject(index, mem)
+                index += 1
+            index += 1
+            current_offset = offset.byte_offset + (offset.byte_length or 1)
+
+    def _removeUnknown(self):
+        for mem in self._rom.offsets:
+            if mem.data_type == DataType.UNKNOWN:
+                self._memoryMapList.removeObject(mem)
 
     def setRom(self, rom: GBAFile):
         self._rom = rom
@@ -491,6 +538,10 @@ class Extractor(Qt.QWidget):
                 data = self._rom.extract_raw(mem)
                 self._header.setMemory(data)
                 self._view.setCurrentWidget(self._header)
+            elif mem.data_type == DataType.UNKNOWN:
+                data = self._rom.extract_raw(mem)
+                self._hexa.setData(data, address=mem.byte_offset)
+                self._view.setCurrentWidget(self._hexa)
             else:
                 data = self._readImage(mem)
                 self._image.setData(data)

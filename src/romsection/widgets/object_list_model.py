@@ -29,6 +29,11 @@ class ObjectListModel(Qt.QAbstractItemModel):
         index = self.objectIndex(obj)
         self.dataChanged.emit(index, index)
 
+    def insertObject(self, index: int, obj: typing.Any):
+        self.beginInsertRows(Qt.QModelIndex(), index, index)
+        self.__items.insert(index, obj)
+        self.endInsertRows()
+
     def removeObject(self, obj: typing.Any):
         index = self.__items.index(obj)
         self.beginRemoveRows(Qt.QModelIndex(), index, index)
