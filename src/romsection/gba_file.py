@@ -67,6 +67,11 @@ class MemoryMap:
     This influe the interpretation of this data, including the expected metadata.
     """
 
+    palette_size: int | None = None
+    """
+    Number of color of the palette.
+    """
+
     image_shape: tuple[int, int] | None = None
     """Shape of the image, in numpy order: Y then X"""
 
@@ -108,6 +113,8 @@ class MemoryMap:
             description["image_pixel_order"] = self.image_pixel_order.name
         if self.image_palette_offset is not None:
             description["image_palette_offset"] = self.image_palette_offset
+        if self.palette_size is not None:
+            description["palette_size"] = self.palette_size
         return description
 
     @staticmethod
@@ -131,6 +138,7 @@ class MemoryMap:
             image_color_mode = ImageColorMode[image_color_mode]
         if image_pixel_order is not None:
             image_pixel_order = ImagePixelOrder[image_pixel_order]
+        palette_size = description.get("palette_size")
         return MemoryMap(
             byte_offset=byte_offset,
             byte_codec=byte_codec,
@@ -141,6 +149,7 @@ class MemoryMap:
             image_color_mode=image_color_mode,
             image_pixel_order=image_pixel_order,
             image_palette_offset=image_palette_offset,
+            palette_size=palette_size,
         )
 
 
@@ -254,10 +263,13 @@ class GBAFile:
         if mem.data_type != DataType.PALETTE:
             raise ValueError(f"Memory map 0x{mem.byte_offset:08X} is not a palette")
 
-        if data.size % 32 != 0:
+        size = mem.palette_size if mem.palette_size is not None else 16
+        byte_per_color = 2
+
+        if data.size % (size * byte_per_color) != 0:
             raise ValueError(f"Memory map 0x{mem.byte_offset:08X} don't have the right size")
 
-        nb = data.size // 32
+        nb = data.size // (size * byte_per_color)
         data = convert_a1rgb15_to_argb32(data)
         data.shape = nb, -1, 4
         return data

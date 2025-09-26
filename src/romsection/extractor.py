@@ -24,6 +24,7 @@ from .widgets.palette_combo_box import PaletteComboBox
 from .widgets.gba_rom_header_view import GbaRomHeaderView
 from .widgets.sprite_view import SpriteView
 from .widgets.hexa_view import HexaView
+from .widgets.palette_size_list import PaletteSizeList
 from .gba_file import GBAFile, MemoryMap, ImageColorMode, ImagePixelOrder, DataType
 
 
@@ -95,6 +96,9 @@ class Extractor(Qt.QWidget):
         self._dataTypeList = DataTypeList(self)
         self._dataTypeList.itemSelectionChanged.connect(self._onDataTypeSelected)
 
+        self._paletteSizeList = PaletteSizeList(self)
+        self._paletteSizeList.itemSelectionChanged.connect(self._onPaletteSizeSelected)
+
         self._paletteCombo = PaletteComboBox(self)
         self._paletteCombo.setModel(self._paletteList)
         self._paletteCombo.setMaxVisibleItems(15)
@@ -137,16 +141,19 @@ class Extractor(Qt.QWidget):
         spriteCodec.setContentsMargins(0, 0, 0, 0)
         spriteCodec.addWidget(self._byteCodecList)
         spriteCodec.addWidget(self._dataTypeList)
+        spriteCodec.addWidget(self._paletteSizeList)
         spriteCodec.addWidget(self._colorModeList)
         spriteCodec.addWidget(self._paletteCombo)
         spriteCodec.addWidget(self._shapeList)
         spriteCodec.addWidget(self._pixelOrderList)
         spriteCodec.setStretchFactor(self._byteCodecList, 0)
         spriteCodec.setStretchFactor(self._dataTypeList, 0)
+        spriteCodec.setStretchFactor(self._paletteSizeList, 0)
         spriteCodec.setStretchFactor(self._paletteCombo, 0)
         spriteCodec.setStretchFactor(self._colorModeList, 0)
         spriteCodec.setStretchFactor(self._shapeList, 1)
         spriteCodec.setStretchFactor(self._pixelOrderList, 0)
+        spriteCodec.addStretch(1)
 
         main = Qt.QHBoxLayout(self)
         main.addLayout(toolbar)
@@ -400,6 +407,7 @@ class Extractor(Qt.QWidget):
         self._paletteCombo.setEnabled(False)
         self._shapeList.setEnabled(False)
         self._pixelOrderList.setEnabled(False)
+        self._paletteSizeList.setEnabled(False)
         with blockSignals(self._byteCodecList):
             self._byteCodecList.selectByteCodec(None)
         with blockSignals(self._dataTypeList):
@@ -412,6 +420,8 @@ class Extractor(Qt.QWidget):
             self._shapeList.clear()
         with blockSignals(self._pixelOrderList):
             self._pixelOrderList.selectImagePixelOrder(None)
+        with blockSignals(self._paletteSizeList):
+            self._paletteSizeList.selectPaletteSize(None)
         self._view.setCurrentWidget(self._nothing)
 
     def _updateMultipleMemoryMapSelected(self, mems: list[MemoryMap]):
@@ -424,7 +434,7 @@ class Extractor(Qt.QWidget):
         self._colorModeList.setEnabled(True)
         self._paletteCombo.setEnabled(True)
         self._pixelOrderList.setEnabled(True)
-
+        self._paletteSizeList.setEnabled(True)
 
         with blockSignals(self._byteCodecList):
             reducedByteCodec = uniqueValueElseNone([m.byte_codec for m in mems])
@@ -448,7 +458,11 @@ class Extractor(Qt.QWidget):
         with blockSignals(self._pixelOrderList):
             reducedPixelOrder = uniqueValueElseNone([m.image_pixel_order for m in mems])
             self._pixelOrderList.selectImagePixelOrder(reducedPixelOrder)
+        with blockSignals(self._paletteSizeList):
+            reducedPaletteSize = uniqueValueElseNone([m.palette_size for m in mems])
+            self._paletteSizeList.selectPaletteSize(reducedPaletteSize)
 
+        self._updateWidgets()
         self._updateShapes()
         self._updateImage()
 
@@ -460,6 +474,7 @@ class Extractor(Qt.QWidget):
         self._paletteCombo.setEnabled(True)
         self._shapeList.setEnabled(True)
         self._pixelOrderList.setEnabled(True)
+        self._paletteSizeList.setEnabled(True)
 
         if mem.byte_payload is not None:
             if mem.image_color_mode is None and mem.image_shape is None and mem.image_pixel_order is None:
@@ -495,6 +510,10 @@ class Extractor(Qt.QWidget):
         with blockSignals(self._pixelOrderList):
             self._pixelOrderList.selectImagePixelOrder(mem.image_pixel_order)
 
+        with blockSignals(self._paletteSizeList):
+            self._paletteSizeList.selectPaletteSize(mem.palette_size)
+
+        self._updateWidgets()
         self._updateShapes()
         self._updateImage()
 
@@ -518,8 +537,29 @@ class Extractor(Qt.QWidget):
             mem.data_type = dataType
             self._memoryMapList.updatedObject(mem)
 
+        self._updateWidgets()
         self._updateShapes()
         self._updateImage()
+
+    def _onPaletteSizeSelected(self):
+        paletteSize = self._paletteSizeList.selectedPaletteSize()
+        if paletteSize is None:
+            return
+        for mem in self._memView.selectedMemoryMaps():
+            mem.palette_size = paletteSize
+            self._memoryMapList.updatedObject(mem)
+
+        self._updateWidgets()
+        self._updateShapes()
+        self._updateImage()
+
+    def _updateWidgets(self):
+        dataType = self._dataTypeList.selectedDataType()
+        self._paletteSizeList.setVisible(dataType == DataType.PALETTE)
+        self._colorModeList.setVisible(dataType == DataType.IMAGE)
+        self._paletteCombo.setVisible(dataType == DataType.IMAGE)
+        self._shapeList.setVisible(dataType == DataType.IMAGE)
+        self._pixelOrderList.setVisible(dataType == DataType.IMAGE)
 
     def _updateShapes(self):
         mems = self._memView.selectedMemoryMaps()
@@ -640,7 +680,10 @@ class Extractor(Qt.QWidget):
         """
         assert self._rom is not None
         if mem.data_type == DataType.PALETTE:
-            return self._rom.palette_data(mem)
+            result = self._rom.palette_data(mem)
+            # FIXME: Handle explicitly 16 and 256
+            result.shape = -1, 16, result.shape[2]
+            return result
 
         if mem.data_type == DataType.IMAGE:
             return self._rom.image_data(mem)

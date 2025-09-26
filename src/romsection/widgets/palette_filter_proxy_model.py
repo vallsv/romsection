@@ -29,17 +29,30 @@ def createPaletteIcon(rom: GBAFile, mem: MemoryMap) -> Qt.QIcon:
     paletteData = data[0]
 
     size = len(paletteData)
-    pixmap = Qt.QPixmap(size, size)
-    painter = Qt.QPainter(pixmap)
-    # FIXME: This could be done without loop
-    for i in range(size):
-        rgb = paletteData[i]
-        r, g, b = rgb[0], rgb[1], rgb[2]
-        painter.setPen(Qt.QColor.fromRgbF(r, g, b))
-        painter.drawPoint(Qt.QPoint(i, 0))
 
-    painter.drawPixmap(0, 1, size, size - 1, pixmap, 0, 0, size, 1)
-    painter.end()
+    if mem.palette_size in [None, 16]:
+        if size != 16:
+            return Qt.QIcon()
+        image = Qt.QImage(
+            paletteData[:, 0:3].tobytes(),
+            16,
+            1,
+            Qt.QImage.Format_RGB888,
+        )
+        pixmap = Qt.QPixmap.fromImage(image)
+        pixmap = pixmap.scaled(16, 16, Qt.Qt.IgnoreAspectRatio, Qt.Qt.FastTransformation)
+    elif mem.palette_size == 256:
+        if size != 256:
+            return Qt.QIcon()
+        image = Qt.QImage(
+            paletteData[:, 0:3].tobytes(),
+            16,
+            16,
+            Qt.QImage.Format_RGB888,
+        )
+        pixmap = Qt.QPixmap.fromImage(image)
+    else:
+        return Qt.QIcon()
 
     return Qt.QIcon(pixmap)
 
