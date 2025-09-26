@@ -119,6 +119,8 @@ class Extractor(Qt.QWidget):
         self._header = GbaRomHeaderView(self)
 
         self._hexa = HexaView(self)
+        self._hexa.setContextMenuPolicy(Qt.Qt.CustomContextMenu)
+        self._hexa.customContextMenuRequested.connect(self._showHexaContextMenu)
 
         self._view = Qt.QStackedLayout()
         self._view.addWidget(self._nothing)
@@ -296,6 +298,52 @@ class Extractor(Qt.QWidget):
         filename = dialog.selectedFiles()[0]
         with open(filename, "wb") as f:
             f.write(data.tobytes())
+
+    def _showHexaContextMenu(self, pos: Qt.QPoint):
+        globalPos = self._hexa.mapToGlobal(pos)
+        menu = Qt.QMenu(self)
+
+        mem = self._memView.selectedMemoryMap()
+        if mem is None:
+            return
+
+        offset = self._hexa.selectedOffset()
+        if offset is None:
+            return
+
+        split = Qt.QAction(menu)
+        split.setText("Split memory map before this address")
+        split.triggered.connect(self._splitMemoryMap)
+        menu.addAction(split)
+
+        menu.exec(globalPos)
+
+    def _splitMemoryMap(self):
+        """Split the memory map at the selection"""
+        mem = self._memView.selectedMemoryMap()
+        if mem is None:
+            return
+
+        offset = self._hexa.selectedOffset()
+        if offset is None:
+            return
+
+        prevMem = MemoryMap(
+            byte_offset=mem.byte_offset,
+            byte_length=offset - mem.byte_offset,
+            data_type=DataType.UNKNOWN,
+        )
+
+        nextMem = MemoryMap(
+            byte_offset=offset,
+            byte_length=mem.byte_offset + mem.byte_length - offset,
+            data_type=DataType.UNKNOWN,
+        )
+
+        index = self._memoryMapList.objectIndex(mem).row()
+        self._memoryMapList.removeObject(mem)
+        self._memoryMapList.insertObject(index, prevMem)
+        self._memoryMapList.insertObject(index + 1, nextMem)
 
     def _loadInfo(self):
         try:

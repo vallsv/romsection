@@ -42,6 +42,17 @@ class HexaTableModel(Qt.QAbstractTableModel):
         row = index.row()
         column = index.column()
 
+        if role == Qt.Qt.UserRole:
+            if column == 0x10:
+                return None
+            pos = (row << 4) + column
+            if pos < self.__padding:
+                return None
+            if pos < self.__length:
+                return self.__start + pos
+            else:
+                return None
+
         if role == Qt.Qt.DisplayRole:
             if column == 0x10:
                 start = row << 4
@@ -166,3 +177,10 @@ class HexaView(Qt.QTableView):
         for i in range(0x10):
             header.setSectionResizeMode(i, Qt.QHeaderView.Fixed)
         header.setSectionResizeMode(0x10, Qt.QHeaderView.Stretch)
+
+    def selectedOffset(self) -> int | None:
+        model = self.selectionModel()
+        items = model.selectedIndexes()
+        if len(items) != 1:
+            return None
+        return items[0].data(Qt.Qt.UserRole)
