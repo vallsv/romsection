@@ -15,7 +15,7 @@ class DataTypeList(Qt.QListWidget):
         item = Qt.QListWidgetItem()
         item.setText(f"GBA ROM header")
         item.setData(Qt.Qt.UserRole, DataType.GBA_ROM_HEADER)
-        item.setIcon(Qt.QIcon("icons:empty.png"))
+        item.setIcon(Qt.QIcon("icons:gba.png"))
         self.addItem(item)
 
         item = Qt.QListWidgetItem()

@@ -34,6 +34,8 @@ class MemoryMapListModel(ObjectListModel):
                 return Qt.QIcon("icons:unknown.png")
             if mem.data_type == DataType.PADDING:
                 return Qt.QIcon("icons:padding.png")
+            if mem.data_type == DataType.GBA_ROM_HEADER:
+                return Qt.QIcon("icons:gba.png")
 
             return Qt.QIcon("icons:empty.png")
 
