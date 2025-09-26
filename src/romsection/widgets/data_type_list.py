@@ -31,12 +31,19 @@ class DataTypeList(Qt.QListWidget):
         self.addItem(item)
 
         item = Qt.QListWidgetItem()
+        item.setText(f"Padding")
+        item.setData(Qt.Qt.UserRole, DataType.PADDING)
+        item.setIcon(Qt.QIcon("icons:padding.png"))
+        self.addItem(item)
+
+        item = Qt.QListWidgetItem()
         item.setText(f"Unknown")
         item.setData(Qt.Qt.UserRole, DataType.UNKNOWN)
         item.setIcon(Qt.QIcon("icons:unknown.png"))
         self.addItem(item)
 
         rect = self.visualItemRect(item)
+        self.setMinimumHeight(rect.height() * self.count() + 4)
         self.setMaximumHeight(rect.height() * self.count() + 4)
 
     def selectedDataType(self) -> DataType | None:

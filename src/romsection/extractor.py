@@ -656,6 +656,10 @@ class Extractor(Qt.QWidget):
                 data = self._rom.extract_raw(mem)
                 self._header.setMemory(data)
                 self._view.setCurrentWidget(self._header)
+            elif mem.data_type == DataType.PADDING:
+                data = self._rom.extract_raw(mem)
+                self._hexa.setData(data, address=mem.byte_offset)
+                self._view.setCurrentWidget(self._hexa)
             elif mem.data_type == DataType.UNKNOWN:
                 data = self._rom.extract_raw(mem)
                 self._hexa.setData(data, address=mem.byte_offset)

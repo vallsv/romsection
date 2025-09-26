@@ -32,6 +32,8 @@ class MemoryMapListModel(ObjectListModel):
                 return Qt.QIcon("icons:palette.png")
             if mem.data_type == DataType.UNKNOWN:
                 return Qt.QIcon("icons:unknown.png")
+            if mem.data_type == DataType.PADDING:
+                return Qt.QIcon("icons:padding.png")
 
             return Qt.QIcon("icons:empty.png")
 

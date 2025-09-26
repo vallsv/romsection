@@ -20,9 +20,26 @@ class ByteCodec(enum.Enum):
 
 class DataType(enum.Enum):
     IMAGE = enum.auto()
+    """Memory map which can be represented as a image."""
+
     PALETTE = enum.auto()
+    """Memory map compound by a set of colors."""
+
     UNKNOWN = enum.auto()
+    """Memory map which is not yet identified."""
+
     GBA_ROM_HEADER = enum.auto()
+    """
+    Memory map containing GBA description.
+
+    See http://problemkaputt.de/gbatek.htm#gbacartridgeheader
+    """
+
+    PADDING = enum.auto()
+    """
+    Memory map which fill the memory with anything (usually 0) for
+    better alignement of the next memory map.
+    """
 
 
 class ImageColorMode(enum.Enum):
@@ -93,6 +110,11 @@ class MemoryMap:
     an indexed color mode.
     """
 
+    comment: str | None = None
+    """
+    Human comment
+    """
+
     def to_dict(self) -> dict[str, typing.Any]:
         description:  dict[str, typing.Any] = {
             "byte_offset": self.byte_offset,
@@ -115,6 +137,8 @@ class MemoryMap:
             description["image_palette_offset"] = self.image_palette_offset
         if self.palette_size is not None:
             description["palette_size"] = self.palette_size
+        if self.comment is not None:
+            description["comment"] = self.comment
         return description
 
     @staticmethod
@@ -139,6 +163,7 @@ class MemoryMap:
         if image_pixel_order is not None:
             image_pixel_order = ImagePixelOrder[image_pixel_order]
         palette_size = description.get("palette_size")
+        comment = description.get("comment")
         return MemoryMap(
             byte_offset=byte_offset,
             byte_codec=byte_codec,
@@ -150,6 +175,7 @@ class MemoryMap:
             image_pixel_order=image_pixel_order,
             image_palette_offset=image_palette_offset,
             palette_size=palette_size,
+            comment=comment,
         )
 
 
