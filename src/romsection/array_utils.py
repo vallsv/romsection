@@ -31,7 +31,8 @@ def convert_to_tiled_8x8(data: numpy.ndarray) -> numpy.ndarray:
     if data.shape[1] == 8:
         return data
     mapping = data.view()
-    mapping.shape = data.shape[0] // 8, data.shape[1] // 8, 8, 8
+    color = data.shape[2] if len(data.shape) == 3 else 1
+    mapping.shape = data.shape[0] // 8, data.shape[1] // 8, 8, 8, color
     mapping = numpy.swapaxes(mapping, 1, 2)
     return numpy.ascontiguousarray(mapping).reshape(data.shape)
 
