@@ -44,7 +44,27 @@ class DataType(enum.Enum):
 
 class ImageColorMode(enum.Enum):
     INDEXED_8BIT = enum.auto()
+    """8 bits data displayed with a color from a palette"""
+
     INDEXED_4BIT = enum.auto()
+    """4 bits data (2 pixels per byte) displayed with a color from a palette"""
+
+    RGB15 = enum.auto()
+    """16 bits true color (2 bytes per pixels).
+
+    Each RGB component use a 5 bits depth.
+
+    The remaining 16th bit is lost.
+    """
+
+    A1RGB15 = enum.auto()
+    """
+    16 bits true color (2 bytes per pixels) with alpha component.
+
+    Each RGB components use a 5 bits depth.
+
+    When alpha=0 -> transparent, when alpha=1 -> opaque.
+    """
 
 
 class ImagePixelOrder(enum.Enum):
