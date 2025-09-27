@@ -1,4 +1,5 @@
 import os
+import io
 import sys
 import logging
 import rtoml
@@ -25,6 +26,7 @@ from .widgets.gba_rom_header_view import GbaRomHeaderView
 from .widgets.sprite_view import SpriteView
 from .widgets.hexa_view import HexaView
 from .widgets.palette_size_list import PaletteSizeList
+from .widgets.pixel_browser import PixelBrowser
 from .gba_file import GBAFile, MemoryMap, ImageColorMode, ImagePixelOrder, DataType
 
 
@@ -87,7 +89,7 @@ class Extractor(Qt.QWidget):
         self._memView.setModel(self._memoryMapList)
         self._memView.selectionModel().selectionChanged.connect(self._onMemoryMapSelectionChanged)
         self._memView.setContextMenuPolicy(Qt.Qt.CustomContextMenu)
-        self._memView.customContextMenuRequested.connect(self._showSpriteContextMenu)
+        self._memView.customContextMenuRequested.connect(self._showMemoryMapContextMenu)
         self._memView.setSelectionMode(Qt.QAbstractItemView.ExtendedSelection)
 
         self._byteCodecList = ByteCodecList(self)
@@ -130,12 +132,15 @@ class Extractor(Qt.QWidget):
         self._hexa.setContextMenuPolicy(Qt.Qt.CustomContextMenu)
         self._hexa.customContextMenuRequested.connect(self._showHexaContextMenu)
 
+        self._pixelBrowser = PixelBrowser(self)
+
         self._view = Qt.QStackedLayout()
         self._view.addWidget(self._nothing)
         self._view.addWidget(self._image)
         self._view.addWidget(self._error)
         self._view.addWidget(self._header)
         self._view.addWidget(self._hexa)
+        self._view.addWidget(self._pixelBrowser)
 
         spriteCodec = Qt.QVBoxLayout()
         spriteCodec.setContentsMargins(0, 0, 0, 0)
@@ -209,7 +214,7 @@ class Extractor(Qt.QWidget):
         finally:
             Qt.QGuiApplication.restoreOverrideCursor()
 
-    def _showSpriteContextMenu(self, pos: Qt.QPoint):
+    def _showMemoryMapContextMenu(self, pos: Qt.QPoint):
         globalPos = self._memView.mapToGlobal(pos)
         menu = Qt.QMenu(self)
 
@@ -221,6 +226,18 @@ class Extractor(Qt.QWidget):
         menu.addAction(remove)
 
         if len(mems) == 1:
+            menu.addSeparator()
+
+            rawHexa = Qt.QAction(menu)
+            rawHexa.setText("Show raw as hexa")
+            rawHexa.triggered.connect(self._showMemoryMapRawAsHexa)
+            menu.addAction(rawHexa)
+
+            dataHexa = Qt.QAction(menu)
+            dataHexa.setText("Show data as hexa")
+            dataHexa.triggered.connect(self._showMemoryMapDataAsHexa)
+            menu.addAction(dataHexa)
+
             saveRaw = Qt.QAction(menu)
             saveRaw.setText("Save as raw...")
             saveRaw.triggered.connect(self._saveMemoryMapAsRaw)
@@ -255,6 +272,22 @@ class Extractor(Qt.QWidget):
 
         for mem in mems:
             self._memoryMapList.removeObject(mem)
+
+    def _showMemoryMapRawAsHexa(self):
+        mem = self._memView.selectedMemoryMap()
+        if mem is None:
+            return
+        data = self._rom.extract_raw(mem)
+        self._hexa.setData(data, address=mem.byte_offset)
+        self._view.setCurrentWidget(self._hexa)
+
+    def _showMemoryMapDataAsHexa(self):
+        mem = self._memView.selectedMemoryMap()
+        if mem is None:
+            return
+        data = self._rom.extract_data(mem)
+        self._hexa.setData(data, address=mem.byte_offset)
+        self._view.setCurrentWidget(self._hexa)
 
     def _saveMemoryMapAsRaw(self):
         """Save the memory as it is stored (compressed) into a file"""
@@ -661,9 +694,10 @@ class Extractor(Qt.QWidget):
                 self._hexa.setData(data, address=mem.byte_offset)
                 self._view.setCurrentWidget(self._hexa)
             elif mem.data_type == DataType.UNKNOWN:
-                data = self._rom.extract_raw(mem)
-                self._hexa.setData(data, address=mem.byte_offset)
-                self._view.setCurrentWidget(self._hexa)
+                data = self._rom.extract_data(mem)
+                memory = io.BytesIO(data.tobytes())
+                self._pixelBrowser.setMemory(memory)
+                self._view.setCurrentWidget(self._pixelBrowser)
             else:
                 data = self._readImage(mem)
                 self._image.setData(data)
