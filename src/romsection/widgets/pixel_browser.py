@@ -16,6 +16,7 @@ class PixelBrowser(Qt.QFrame):
         Qt.QFrame.__init__(self, parent=parent)
         self.setFrameShadow(Qt.QFrame.Sunken)
         self.setFrameShape(Qt.QFrame.StyledPanel)
+        self.setFocusPolicy(Qt.Qt.StrongFocus)
 
         self.__address: int = 0
 
@@ -65,15 +66,6 @@ class PixelBrowser(Qt.QFrame):
         self.__colorMode.currentIndexChanged.connect(self.__colorModeChanged)
         self.__pixelOrder.currentIndexChanged.connect(self.__pixelOrderChanged)
         self.__scroll.valueChanged.connect(self.__positionChanged)
-
-        shortcut = Qt.QShortcut(Qt.QKeySequence("Left"), self)
-        shortcut.activated.connect(self.moveToPreviousByte)
-        shortcut = Qt.QShortcut(Qt.QKeySequence("Right"), self)
-        shortcut.activated.connect(self.moveToNextByte)
-        shortcut = Qt.QShortcut(Qt.QKeySequence("Up"), self)
-        shortcut.activated.connect(self.moveToPreviousLine)
-        shortcut = Qt.QShortcut(Qt.QKeySequence("Down"), self)
-        shortcut.activated.connect(self.moveToNextLine)
         self.__widget.selectionChanged.connect(self.__onSelectionChanged)
 
         self._updateSelection(self.selection())
@@ -97,6 +89,20 @@ class PixelBrowser(Qt.QFrame):
             return selection
         return self.__address + selection[0], self.__address + selection[1]
 
+    def keyPressEvent(self, event: Qt.QKeyEvent):
+        if event.key() == Qt.Qt.Key_Down:
+            self.moveToNextLine()
+        elif event.key() == Qt.Qt.Key_Up:
+            self.moveToPreviousLine()
+        elif event.key() == Qt.Qt.Key_Left:
+            self.moveToPreviousByte()
+        elif event.key() == Qt.Qt.Key_Right:
+            self.moveToNextByte()
+        elif event.key() == Qt.Qt.Key_PageUp:
+            self.moveToPreviousPage()
+        elif event.key() == Qt.Qt.Key_PageDown:
+            self.moveToNextPage()
+
     def moveToPreviousByte(self):
         pos = self.__widget.position() - 1
         pos = max(pos, 0)
@@ -114,6 +120,16 @@ class PixelBrowser(Qt.QFrame):
 
     def moveToNextLine(self):
         pos = self.__widget.position() + self.__widget.bytesPerLine()
+        pos = min(pos, self.__widget.memoryLength())
+        self.__widget.setPosition(pos)
+
+    def moveToPreviousPage(self):
+        pos = self.__widget.position() - self.__widget.bytesPerLine() * 8
+        pos = max(pos, 0)
+        self.__widget.setPosition(pos)
+
+    def moveToNextPage(self):
+        pos = self.__widget.position() + self.__widget.bytesPerLine() * 8
         pos = min(pos, self.__widget.memoryLength())
         self.__widget.setPosition(pos)
 
