@@ -27,7 +27,7 @@ from .widgets.sprite_view import SpriteView
 from .widgets.hexa_view import HexaView
 from .widgets.palette_size_list import PaletteSizeList
 from .widgets.pixel_browser import PixelBrowser
-from .gba_file import GBAFile, MemoryMap, ImageColorMode, ImagePixelOrder, DataType
+from .gba_file import GBAFile, ByteCodec, MemoryMap, ImageColorMode, ImagePixelOrder, DataType
 
 
 @contextlib.contextmanager
@@ -355,6 +355,10 @@ class Extractor(Qt.QWidget):
         if mem is None:
             return
 
+        if mem.byte_codec != ByteCodec.RAW:
+            # Actually we can't split such memory
+            return
+
         offset = self._hexa.selectedOffset()
         if offset is None:
             return
@@ -397,7 +401,13 @@ class Extractor(Qt.QWidget):
         globalPos = self._pixelBrowser.mapToGlobal(pos)
         menu = Qt.QMenu(self)
 
-        mems = self._memView.selectedMemoryMaps()
+        mem = self._memView.selectedMemoryMap()
+        if mem is None:
+            return
+
+        if mem.byte_codec != ByteCodec.RAW:
+            # Actually we can't split such memory
+            return
 
         split = Qt.QAction(menu)
         split.setText("Extract memory map")
