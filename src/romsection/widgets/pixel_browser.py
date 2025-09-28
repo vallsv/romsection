@@ -64,6 +64,9 @@ class PixelBrowser(Qt.QFrame):
         shortcut = Qt.QShortcut(Qt.QKeySequence("Down"), self)
         shortcut.activated.connect(self.moveToNextLine)
 
+    def selection(self) -> tuple[int, int] | None:
+        return self.__widget.selection()
+
     def moveToPreviousByte(self):
         pos = self.__widget.position() - 1
         pos = max(pos, 0)

@@ -17,6 +17,23 @@ class PixelBrowserWidget(Qt.QWidget):
         self.__len: int = 0
         self.__pixelWidth: int = 48
         self.__zoom: int = 4
+        self.__selectionFrom: int = -1
+        self.__selectionTo: int = -1
+
+    def selection(self) -> tuple[int, int] | None:
+        """
+        Return the selection.
+
+        Return:
+            A tuple with the position range.
+            The first is included, the second is excluded.
+        """
+        if self.__selectionFrom == -1:
+            return None
+        if self.__selectionTo == -1:
+            return None
+        # FIXME: Make sure the returned selection is oriented
+        return self.__pos + self.__selectionFrom, self.__pos + self.__selectionTo + 1
 
     def zoom(self) -> int:
         return self.__zoom
@@ -272,4 +289,70 @@ class PixelBrowserWidget(Qt.QWidget):
         remainingBytes = binaryData[nbEasyBytes:]
         # FIXME: Draw the remaining stuff
 
+        painter.resetTransform()
+
+        polygon = self._polygonSelection()
+        if polygon is not None:
+            painter.setPen(Qt.QPen(Qt.QColor(0, 0, 255)))
+            painter.drawPolygon(polygon)
+
         painter.restore()
+
+    def _pixelFromBytePosition(self, position: int) -> Qt.QPoint:
+        # FIXME: Rework it for other than 1 pixel per byte
+        pixelCenter = Qt.QPoint(self.__zoom // 2, self.__zoom // 2)
+        if self.__pixelOrder == ImagePixelOrder.TILED_8X8:
+            bytesPerLine = self.bytesPerLine()
+            nbTilesPerLine = bytesPerLine // 8
+            nbTiles, tp = divmod(position, 8 * 8)
+            ty, tx = divmod(nbTiles, nbTilesPerLine)
+            y, x = divmod(tp, 8)
+            return Qt.QPoint(tx * 8 + x, ty * 8 + y) * self.__zoom + pixelCenter
+        else:
+            bytesPerLine = self.bytesPerLine()
+            y, x = divmod(position, bytesPerLine)
+            return Qt.QPoint(x, y) * self.__zoom + pixelCenter
+
+    def _polygonSelection(self) -> Qt.QPolygon | None:
+        if self.__selectionFrom == -1:
+            return None
+        poly = Qt.QPolygon(2)
+        poly[0] = self._pixelFromBytePosition(self.__selectionFrom)
+        poly[1] = self._pixelFromBytePosition(self.__selectionTo)
+        return poly
+
+    def _positionFromPixel(self, pos: Qt.QPoint) -> int:
+        x = pos.x() // self.__zoom
+        y = pos.y() // self.__zoom
+        bytesPerLine = self.bytesPerLine()
+        x = min(x, bytesPerLine)
+
+        # FIXME: Rework it for other than 1 pixel per byte
+        if self.__pixelOrder == ImagePixelOrder.TILED_8X8:
+            tx, x = divmod(x, 8)
+            ty, y = divmod(y, 8)
+            position = ty * bytesPerLine * 8 + tx * 8 * 8 + y * 8 + x
+        else:
+            position = x + bytesPerLine * y
+        return position
+
+    def mousePressEvent(self, event: Qt.QMouseEvent):
+        if event.button() == Qt.Qt.LeftButton:
+            self.grabMouse()
+            pos = self._positionFromPixel(event.pos())
+            self.__selectionFrom = pos
+            self.__selectionTo = pos
+            self.update()
+
+    def mouseMoveEvent(self, event: Qt.QMouseEvent):
+        if self.mouseGrabber() is self:
+            pos = self._positionFromPixel(event.pos())
+            self.__selectionTo = pos
+            self.update()
+
+    def mouseReleaseEvent(self, event: Qt.QMouseEvent):
+        if event.button() == Qt.Qt.LeftButton:
+            pos = self._positionFromPixel(event.pos())
+            self.__selectionTo = pos
+            self.releaseMouse()
+            self.update()
