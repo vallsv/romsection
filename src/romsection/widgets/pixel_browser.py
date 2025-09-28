@@ -22,7 +22,7 @@ class PixelBrowser(Qt.QFrame):
         self.__toolbar = Qt.QToolBar(self)
 
         self.__zoom = Qt.QSpinBox(self.__toolbar)
-        self.__zoom.setRange(1, 8)
+        self.__zoom.setRange(1, 16)
         self.__zoom.setValue(self.__widget.zoom())
         self.__toolbar.addWidget(self.__zoom)
 
