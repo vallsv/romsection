@@ -5,6 +5,7 @@ from PyQt5 import Qt
 
 from ..gba_file import ImageColorMode, ImagePixelOrder
 from .. import array_utils
+from ..format_utils import format_address as f_address
 from .pixel_browser_widget import PixelBrowserWidget
 from .image_pixel_order_combo import ImagePixelOrderCombo
 from .image_color_mode_combo import ImageColorModeCombo
@@ -16,10 +17,19 @@ class PixelBrowser(Qt.QFrame):
         self.setFrameShadow(Qt.QFrame.Sunken)
         self.setFrameShape(Qt.QFrame.StyledPanel)
 
+        self.__address: int = 0
+
         self.__widget = PixelBrowserWidget(self)
         self.__scroll = Qt.QScrollBar(self)
         self.__scroll.setTracking(True)
         self.__toolbar = Qt.QToolBar(self)
+        self.__statusbar = Qt.QStatusBar(self)
+
+        self.__selectionOffset = Qt.QLabel(self.__statusbar)
+        self.__selectionSize = Qt.QLabel(self.__statusbar)
+        self.__statusbar.addWidget(Qt.QLabel("Selection:"), 0)
+        self.__statusbar.addWidget(self.__selectionOffset, 0)
+        self.__statusbar.addWidget(self.__selectionSize, 0)
 
         self.__zoom = Qt.QSpinBox(self.__toolbar)
         self.__zoom.setRange(1, 16)
@@ -46,6 +56,7 @@ class PixelBrowser(Qt.QFrame):
         layout.addWidget(self.__toolbar, 0, 0, 1, 1)
         layout.addWidget(self.__widget, 1, 0)
         layout.addWidget(self.__scroll, 1, 1)
+        layout.addWidget(self.__statusbar, 2, 0, 1, 1)
         layout.setRowStretch(1, 1)
         layout.setColumnStretch(1, 1)
 
@@ -63,9 +74,28 @@ class PixelBrowser(Qt.QFrame):
         shortcut.activated.connect(self.moveToPreviousLine)
         shortcut = Qt.QShortcut(Qt.QKeySequence("Down"), self)
         shortcut.activated.connect(self.moveToNextLine)
+        self.__widget.selectionChanged.connect(self.__onSelectionChanged)
+
+        self._updateSelection(self.selection())
+
+    def __onSelectionChanged(self, selection: tuple[int, int] | None):
+        self._updateSelection(self.selection())
+
+    def _updateSelection(self, selection: tuple[int, int] | None):
+        if selection is None:
+            self.__selectionOffset.setText("No selection")
+            self.__selectionSize.setText("")
+        else:
+            s = self.__address + selection[0], self.__address + selection[1]
+            self.__selectionOffset.setText(f"{f_address(s[0])}...{f_address(s[1]-1)}")
+            size = s[1] - s[0]
+            self.__selectionSize.setText(f"{size}B")
 
     def selection(self) -> tuple[int, int] | None:
-        return self.__widget.selection()
+        selection = self.__widget.selection()
+        if selection is None:
+            return selection
+        return self.__address + selection[0], self.__address + selection[1]
 
     def moveToPreviousByte(self):
         pos = self.__widget.position() - 1
@@ -113,7 +143,8 @@ class PixelBrowser(Qt.QFrame):
     def memory(self) -> io.IOBase:
         return self.__widget.memory()
 
-    def setMemory(self, memory: io.IOBase):
+    def setMemory(self, memory: io.IOBase, address: int = 0):
+        self.__address = address
         self.__widget.setMemory(memory)
         self.__scroll.setValue(0)
         self.__scroll.setRange(0, self.__widget.memoryLength())

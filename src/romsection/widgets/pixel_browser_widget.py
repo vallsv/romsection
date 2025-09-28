@@ -8,6 +8,9 @@ from .. import array_utils
 
 
 class PixelBrowserWidget(Qt.QWidget):
+
+    selectionChanged = Qt.pyqtSignal(object)
+
     def __init__(self, parent: Qt.QWidget | None = None):
         Qt.QWidget.__init__(self, parent=parent)
         self.__colorMode = ImageColorMode.INDEXED_8BIT
@@ -343,12 +346,14 @@ class PixelBrowserWidget(Qt.QWidget):
             self.__selectionFrom = pos
             self.__selectionTo = pos
             self.update()
+            self.selectionChanged.emit(self.selection())
 
     def mouseMoveEvent(self, event: Qt.QMouseEvent):
         if self.mouseGrabber() is self:
             pos = self._positionFromPixel(event.pos())
             self.__selectionTo = pos
             self.update()
+            self.selectionChanged.emit(self.selection())
 
     def mouseReleaseEvent(self, event: Qt.QMouseEvent):
         if event.button() == Qt.Qt.LeftButton:
@@ -356,3 +361,4 @@ class PixelBrowserWidget(Qt.QWidget):
             self.__selectionTo = pos
             self.releaseMouse()
             self.update()
+            self.selectionChanged.emit(self.selection())
