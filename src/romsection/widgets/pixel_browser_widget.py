@@ -7,6 +7,22 @@ from ..gba_file import ImageColorMode, ImagePixelOrder
 from .. import array_utils
 
 
+def byte_per_element(color_mode: ImageColorMode) -> int:
+    """Number of bytes to store a single data element."""
+    if color_mode in (ImageColorMode.A1RGB15, ImageColorMode.RGB15):
+        return 2
+    else:
+        return 1
+
+
+def pixel_per_element(color_mode: ImageColorMode) -> int:
+    """Number of pixels stored in a single data element."""
+    if color_mode == ImageColorMode.INDEXED_4BIT:
+        return 2
+    else:
+        return 1
+
+
 class PixelBrowserWidget(Qt.QWidget):
 
     selectionChanged = Qt.pyqtSignal(object)
@@ -19,7 +35,7 @@ class PixelBrowserWidget(Qt.QWidget):
         self.__pos: int = 0
         self.__len: int = 0
         self.__pixelWidth: int = 48
-        self.__zoom: int = 4
+        self.__zoom: int = 8
         self.__selectionFrom: int = -1
         self.__selectionTo: int = -1
 
@@ -31,12 +47,13 @@ class PixelBrowserWidget(Qt.QWidget):
             A tuple with the position range.
             The first is included, the second is excluded.
         """
-        if self.__selectionFrom == -1:
+        if self.__selectionFrom == -1 or self.__selectionTo == -1:
             return None
-        if self.__selectionTo == -1:
-            return None
-        # FIXME: Make sure the returned selection is oriented
-        return self.__pos + self.__selectionFrom, self.__pos + self.__selectionTo + 1
+        bpe = byte_per_element(self.__colorMode)
+        if self.__selectionFrom <= self.__selectionTo:
+            return self.__selectionFrom, self.__selectionTo + bpe
+        else:
+            return self.__selectionTo, self.__selectionFrom + bpe
 
     def zoom(self) -> int:
         return self.__zoom
@@ -294,57 +311,107 @@ class PixelBrowserWidget(Qt.QWidget):
 
         painter.resetTransform()
 
-        polygon = self._polygonSelection()
-        if polygon is not None:
-            painter.setPen(Qt.QPen(Qt.QColor(0, 0, 255)))
-            painter.drawPolygon(polygon)
+        path = self._createSelectionPath()
+        if path is not None:
+            pen = Qt.QPen(Qt.QColor(0, 0, 255))
+            pen.setWidth(min(max(self.__zoom // 3, 1), 4))
+            painter.setPen(pen)
+            painter.drawPath(path)
 
         painter.restore()
 
     def _pixelFromBytePosition(self, position: int) -> Qt.QPoint:
-        # FIXME: Rework it for other than 1 pixel per byte
-        pixelCenter = Qt.QPoint(self.__zoom // 2, self.__zoom // 2)
+        """Return the left-top pcorner position of a memory position."""
+        relativePosition = position - self.__pos
+        ppe = pixel_per_element(self.__colorMode)
+        bpe = byte_per_element(self.__colorMode)
+        width = self._getConstrainedWidth(self.__pixelWidth)
+        pixelIndex = (relativePosition // bpe) * ppe
         if self.__pixelOrder == ImagePixelOrder.TILED_8X8:
             bytesPerLine = self.bytesPerLine()
-            nbTilesPerLine = bytesPerLine // 8
-            nbTiles, tp = divmod(position, 8 * 8)
+            nbTilesPerLine = width // 8
+            nbTiles, tp = divmod(pixelIndex, 8 * 8)
             ty, tx = divmod(nbTiles, nbTilesPerLine)
             y, x = divmod(tp, 8)
-            return Qt.QPoint(tx * 8 + x, ty * 8 + y) * self.__zoom + pixelCenter
+            return Qt.QPoint(tx * 8 + x, ty * 8 + y) * self.__zoom
         else:
-            bytesPerLine = self.bytesPerLine()
-            y, x = divmod(position, bytesPerLine)
-            return Qt.QPoint(x, y) * self.__zoom + pixelCenter
+            y, x = divmod(pixelIndex, width)
+            return Qt.QPoint(x, y) * self.__zoom
 
-    def _polygonSelection(self) -> Qt.QPolygon | None:
-        if self.__selectionFrom == -1:
+    def _createSelectionPath(self) -> Qt.QPainterPath | None:
+        selection = self.selection()
+        if selection is None:
             return None
-        poly = Qt.QPolygon(2)
-        poly[0] = self._pixelFromBytePosition(self.__selectionFrom)
-        poly[1] = self._pixelFromBytePosition(self.__selectionTo)
-        return poly
+        width = self._getConstrainedWidth(self.__pixelWidth)
+        bytesPerLine = self.bytesPerLine()
+        ppe = pixel_per_element(self.__colorMode)
+        bpe = byte_per_element(self.__colorMode)
+        pwidth = self.__zoom * ppe
+
+        # FIXME: Implement when it's tiled
+        path = Qt.QPainterPath()
+
+        if selection[1] - selection[0] <= bytesPerLine:
+            pfrom  =self._pixelFromBytePosition(selection[0])
+            pto  =self._pixelFromBytePosition(selection[1] - bpe)
+            if pfrom.y() == pto.y():
+                # Same line
+                path.moveTo(pfrom.x(), pfrom.y() + self.__zoom)
+                path.lineTo(pfrom)
+                path.lineTo(pto.x() + pwidth, pto.y())
+                path.lineTo(pto.x() + pwidth, pto.y() + self.__zoom)
+                path.closeSubpath()
+            else:
+                # Non contiguous
+                path.moveTo(pfrom.x(), pfrom.y() + self.__zoom)
+                path.lineTo(pfrom)
+                path.lineTo(width * self.__zoom, pfrom.y())
+                path.lineTo(width * self.__zoom, pfrom.y() + self.__zoom)
+                path.closeSubpath()
+                path.moveTo(pto.x() + pwidth, pto.y() + self.__zoom)
+                path.lineTo(pto.x() + pwidth, pto.y())
+                path.lineTo(0, pto.y())
+                path.lineTo(0, pto.y() + self.__zoom)
+                path.closeSubpath()
+        else:
+            # General case
+            pfrom  =self._pixelFromBytePosition(selection[0])
+            pto  =self._pixelFromBytePosition(selection[1])
+            path.moveTo(0, pfrom.y() + self.__zoom)
+            path.lineTo(pfrom.x(), pfrom.y() + self.__zoom)
+            path.lineTo(pfrom)
+            path.lineTo(width * self.__zoom, pfrom.y())
+            path.lineTo(width * self.__zoom, pto.y())
+            path.lineTo(pto)
+            path.lineTo(pto.x(), pto.y() + self.__zoom)
+            path.lineTo(0, pto.y() + self.__zoom)
+            path.closeSubpath()
+
+        return path
 
     def _positionFromPixel(self, pos: Qt.QPoint) -> int:
         x = pos.x() // self.__zoom
         y = pos.y() // self.__zoom
-        bytesPerLine = self.bytesPerLine()
-        x = min(x, bytesPerLine)
+        width = self._getConstrainedWidth(self.__pixelWidth)
+        x = min(x, width)
 
-        # FIXME: Rework it for other than 1 pixel per byte
         if self.__pixelOrder == ImagePixelOrder.TILED_8X8:
             tx, x = divmod(x, 8)
             ty, y = divmod(y, 8)
-            position = ty * bytesPerLine * 8 + tx * 8 * 8 + y * 8 + x
+            pixelIndex = ty * width * 8 + tx * 8 * 8 + y * 8 + x
         else:
-            position = x + bytesPerLine * y
-        return position
+            pixelIndex = x + width * y
+        ppe = pixel_per_element(self.__colorMode)
+        bpe = byte_per_element(self.__colorMode)
+        byteIndex = (pixelIndex // ppe) * bpe
+        return self.__pos + byteIndex
 
     def mousePressEvent(self, event: Qt.QMouseEvent):
         if event.button() == Qt.Qt.LeftButton:
             self.grabMouse()
             pos = self._positionFromPixel(event.pos())
             self.__selectionFrom = pos
-            self.__selectionTo = pos
+            self.__selectionTo = -1
             self.update()
             self.selectionChanged.emit(self.selection())
 
@@ -357,8 +424,11 @@ class PixelBrowserWidget(Qt.QWidget):
 
     def mouseReleaseEvent(self, event: Qt.QMouseEvent):
         if event.button() == Qt.Qt.LeftButton:
+            self.releaseMouse()
+            if self.__selectionTo == -1:
+                # The mouse habe not moved, it a way to deselect
+                return
             pos = self._positionFromPixel(event.pos())
             self.__selectionTo = pos
-            self.releaseMouse()
             self.update()
             self.selectionChanged.emit(self.selection())
