@@ -283,6 +283,25 @@ class PixelBrowserWidget(Qt.QWidget):
             )
         return image
 
+    def _toImageFromLastRow(self, data: bytes):
+        ppe = pixel_per_element(self.__colorMode)
+        bpe = byte_per_element(self.__colorMode)
+
+        lostSize = len(data) % bpe
+        useData = data[:len(data) - lostSize]
+        # FIXME: It would be good to display something when lostSize is not 0
+
+        if self.__pixelOrder != ImagePixelOrder.TILED_8X8:
+            width = len(useData) // bpe * ppe
+            return self._toImage(useData, width)
+
+        bytesPerTiles = (8 * 8) // ppe * bpe
+        missingSize = bytesPerTiles - len(useData) % bytesPerTiles
+        useData += b"\x00" * missingSize
+        width = (len(useData) // bytesPerTiles) * 8
+        # FIXME: It would be good to display something at the place there is no more data
+        return self._toImage(useData, width)
+
     def _paintAll(self, painter: Qt.QPainter):
         painter.save()
 
@@ -306,8 +325,11 @@ class PixelBrowserWidget(Qt.QWidget):
         image = self._toImage(easyBytes, width)
         painter.drawImage(Qt.QPoint(0, 0), image)
 
+        pos = image.height()
         remainingBytes = binaryData[nbEasyBytes:]
-        # FIXME: Draw the remaining stuff
+        image = self._toImageFromLastRow(remainingBytes)
+        if image is not None:
+            painter.drawImage(Qt.QPoint(0, pos), image)
 
         painter.resetTransform()
 
