@@ -133,6 +133,8 @@ class Extractor(Qt.QWidget):
         self._hexa.customContextMenuRequested.connect(self._showHexaContextMenu)
 
         self._pixelBrowser = PixelBrowser(self)
+        self._pixelBrowser.setContextMenuPolicy(Qt.Qt.CustomContextMenu)
+        self._pixelBrowser.customContextMenuRequested.connect(self._showPixelBrowserContextMenu)
 
         self._view = Qt.QStackedLayout()
         self._view.addWidget(self._nothing)
@@ -390,6 +392,64 @@ class Extractor(Qt.QWidget):
         self._memoryMapList.removeObject(mem)
         self._memoryMapList.insertObject(index, prevMem)
         self._memoryMapList.insertObject(index + 1, nextMem)
+
+    def _showPixelBrowserContextMenu(self, pos: Qt.QPoint):
+        globalPos = self._pixelBrowser.mapToGlobal(pos)
+        menu = Qt.QMenu(self)
+
+        mems = self._memView.selectedMemoryMaps()
+
+        split = Qt.QAction(menu)
+        split.setText("Extract memory map")
+        split.triggered.connect(self._extractMemoryMapFromPixelBrowser)
+        menu.addAction(split)
+
+        menu.exec(globalPos)
+
+    def _extractMemoryMapFromPixelBrowser(self):
+        """Split the memory map at the selection"""
+        mem = self._memView.selectedMemoryMap()
+        if mem is None:
+            return
+
+        selection = self._pixelBrowser.selection()
+        if selection is None:
+            return
+
+        if selection[0] != 0:
+            prevMem = MemoryMap(
+                byte_offset=mem.byte_offset,
+                byte_length=selection[0],
+                data_type=DataType.UNKNOWN,
+            )
+        else:
+            prevMem = None
+
+        selectedMem = MemoryMap(
+            byte_offset=mem.byte_offset + selection[0],
+            byte_length=selection[1] - selection[0],
+            data_type=DataType.UNKNOWN,
+        )
+
+        if selection[1] != mem.byte_length:
+            nextMem = MemoryMap(
+                byte_offset=mem.byte_offset + selection[1],
+                byte_length=mem.byte_length - selection[1],
+                data_type=DataType.UNKNOWN,
+            )
+        else:
+            nextMem = None
+
+        index = self._memoryMapList.objectIndex(mem).row()
+        self._memoryMapList.removeObject(mem)
+        if prevMem is not None:
+            self._memoryMapList.insertObject(index, prevMem)
+            index += 1
+        if selectedMem is not None:
+            self._memoryMapList.insertObject(index, selectedMem)
+            index += 1
+        if nextMem is not None:
+            self._memoryMapList.insertObject(index, nextMem)
 
     def _loadInfo(self):
         try:
