@@ -280,7 +280,8 @@ class Extractor(Qt.QWidget):
         if mem is None:
             return
         data = self._rom.extract_raw(mem)
-        self._hexa.setData(data, address=mem.byte_offset)
+        address = mem.byte_offset
+        self._hexa.setData(data, address=address)
         self._view.setCurrentWidget(self._hexa)
 
     def _showMemoryMapDataAsHexa(self):
@@ -288,7 +289,12 @@ class Extractor(Qt.QWidget):
         if mem is None:
             return
         data = self._rom.extract_data(mem)
-        self._hexa.setData(data, address=mem.byte_offset)
+        if mem.byte_codec == ByteCodec.RAW:
+            address = mem.byte_offset
+        else:
+            # Absolute ROM location have no meaning here
+            address = 0
+        self._hexa.setData(data, address=address)
         self._view.setCurrentWidget(self._hexa)
 
     def _saveMemoryMapAsRaw(self):
@@ -429,22 +435,25 @@ class Extractor(Qt.QWidget):
         if selection[0] != 0:
             prevMem = MemoryMap(
                 byte_offset=mem.byte_offset,
-                byte_length=selection[0],
+                byte_length=selection[0] - mem.byte_offset,
+                byte_codec=mem.byte_codec,
                 data_type=DataType.UNKNOWN,
             )
         else:
             prevMem = None
 
         selectedMem = MemoryMap(
-            byte_offset=mem.byte_offset + selection[0],
+            byte_offset=selection[0],
             byte_length=selection[1] - selection[0],
+            byte_codec=mem.byte_codec,
             data_type=DataType.UNKNOWN,
         )
 
         if selection[1] != mem.byte_length:
             nextMem = MemoryMap(
-                byte_offset=mem.byte_offset + selection[1],
-                byte_length=mem.byte_length - selection[1],
+                byte_offset=selection[1],
+                byte_length=mem.byte_offset + mem.byte_length - selection[1],
+                byte_codec=mem.byte_codec,
                 data_type=DataType.UNKNOWN,
             )
         else:
@@ -766,7 +775,12 @@ class Extractor(Qt.QWidget):
             elif mem.data_type == DataType.UNKNOWN:
                 data = self._rom.extract_data(mem)
                 memory = io.BytesIO(data.tobytes())
-                self._pixelBrowser.setMemory(memory)
+                if mem.byte_codec == ByteCodec.RAW:
+                    address = mem.byte_offset
+                else:
+                    # Absolute ROM location have no meaning here
+                    address = 0
+                self._pixelBrowser.setMemory(memory, address=address)
                 self._view.setCurrentWidget(self._pixelBrowser)
             else:
                 data = self._readImage(mem)
