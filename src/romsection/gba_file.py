@@ -11,6 +11,7 @@ import dataclasses
 from .lz77 import decompress as decompress_lz77
 from .lz77 import dryrun as dryrun_lz77
 from .array_utils import convert_a1rgb15_to_argb32, convert_8bx1_to_4bx2, convert_to_tiled_8x8
+from .codec import pixels_per_byte_length
 from .model import ByteCodec, DataType, ImageColorMode, ImagePixelOrder, MemoryMap
 
 
@@ -153,30 +154,29 @@ class GBAFile:
         if mem.data_type != DataType.IMAGE:
             return None
 
-        if mem.byte_payload is None:
-            if mem.byte_codec in [None, ByteCodec.RAW]:
-                if mem.byte_length is None:
-                    raise ValueError(f"Memory map 0x{mem.byte_offset:08X} have inconcistente description")
-                size = mem.byte_length
-            elif mem.byte_codec == ByteCodec.LZ77:
-                f = self._f
-                f.seek(mem.byte_offset, os.SEEK_SET)
-                try:
-                    size = dryrun_lz77(f)
-                except Exception:
-                    return None
-            else:
+        if mem.byte_codec in [None, ByteCodec.RAW]:
+            if mem.byte_length is None:
                 raise ValueError(f"Memory map 0x{mem.byte_offset:08X} have inconcistente description")
+            size = mem.byte_length
         else:
-            size = mem.byte_payload
-
-        if mem.image_color_mode == ImageColorMode.INDEXED_4BIT:
-            size *= 2
+            if mem.byte_payload is None:
+                if mem.byte_codec == ByteCodec.LZ77:
+                    f = self._f
+                    f.seek(mem.byte_offset, os.SEEK_SET)
+                    try:
+                        size = dryrun_lz77(f)
+                    except Exception:
+                        return None
+                else:
+                    raise ValueError(f"Memory map 0x{mem.byte_offset:08X} have inconcistente description")
+            else:
+                size = mem.byte_payload
 
         if mem.image_shape is not None:
             return mem.image_shape
         else:
-            return self.guess_first_image_shape(size)
+            nb_pixels = pixels_per_byte_length(mem.image_color_mode or ImageColorMode.INDEXED_8BIT, size)
+            return self.guess_first_image_shape(nb_pixels)
 
     def image_data(self, mem: MemoryMap) -> numpy.ndarray:
         """

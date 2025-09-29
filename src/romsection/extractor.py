@@ -700,10 +700,10 @@ class Extractor(Qt.QWidget):
                         self._shapeList.selectShape(image_shape)
         else:
             reducedDataType = uniqueValueElseNone([m.data_type for m in mems])
-            reducedBytePayload = uniqueValueElseNone([m.byte_payload for m in mems])
+            reducedByteLength = uniqueValueElseNone([(m.byte_payload or m.byte_length) for m in mems])
             reducedColorMap = uniqueValueElseNone([m.image_color_mode for m in mems])
 
-            if reducedDataType != DataType.IMAGE or reducedBytePayload is None or reducedColorMap is None:
+            if reducedDataType != DataType.IMAGE or reducedByteLength is None or reducedColorMap is None:
                 self._shapeList.setEnabled(False)
                 with blockSignals(self._shapeList):
                     self._shapeList.clear()
@@ -712,10 +712,11 @@ class Extractor(Qt.QWidget):
                 self._shapeList.setEnabled(True)
                 with blockSignals(self._shapeList):
                     self._shapeList.clear()
+                    oneShape = self._rom.image_shape(mems[0])
+                    shapes = guessed_shapes(oneShape[0] * oneShape[1])
+                    for shape in shapes:
+                        self._shapeList.addShape(shape)
                     if reducedShape is not None:
-                        shapes = guessed_shapes(reducedShape[0] * reducedShape[1])
-                        for shape in shapes:
-                            self._shapeList.addShape(shape)
                         self._shapeList.selectShape(reducedShape)
 
     def _onImageColorModeSelected(self):

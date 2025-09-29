@@ -5,22 +5,7 @@ from PyQt5 import Qt
 
 from ..gba_file import ImageColorMode, ImagePixelOrder
 from .. import array_utils
-
-
-def byte_per_element(color_mode: ImageColorMode) -> int:
-    """Number of bytes to store a single data element."""
-    if color_mode in (ImageColorMode.A1RGB15, ImageColorMode.RGB15):
-        return 2
-    else:
-        return 1
-
-
-def pixel_per_element(color_mode: ImageColorMode) -> int:
-    """Number of pixels stored in a single data element."""
-    if color_mode == ImageColorMode.INDEXED_4BIT:
-        return 2
-    else:
-        return 1
+from ..codec import byte_per_element, pixel_per_element
 
 
 class PixelBrowserWidget(Qt.QWidget):
