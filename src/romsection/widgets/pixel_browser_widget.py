@@ -1,11 +1,73 @@
 import os
 import io
 import numpy
+import dataclasses
 from PyQt5 import Qt
 
 from ..gba_file import ImageColorMode, ImagePixelOrder
 from .. import array_utils
 from ..codec import byte_per_element, pixel_per_element
+
+
+@dataclasses.dataclass
+class PixelSelection:
+    x: int
+    y: int
+    tileX: int | None
+    tileY: int | None
+
+
+def contiguousMemorySelection(
+    indexFrom: int,
+    indexToInside: int,
+    indexToOutside: int,
+    byteWidth: int,
+    pixelSize: int,
+    left: int,
+    right: int,
+    pixelFromBytePosition,
+    bytesPerLine,
+) -> Qt.QPainterPath:
+    """Create a selection of continuous memory in an image"""
+    path = Qt.QPainterPath()
+
+    if indexToOutside - indexFrom <= bytesPerLine:
+        pfrom = pixelFromBytePosition(indexFrom)
+        pto = pixelFromBytePosition(indexToInside)
+        if pfrom.y == pto.y:
+            # Same line
+            path.moveTo(pfrom.x, pfrom.y + pixelSize)
+            path.lineTo(pfrom.x, pfrom.y)
+            path.lineTo(pto.x + byteWidth, pto.y)
+            path.lineTo(pto.x + byteWidth, pto.y + pixelSize)
+            path.closeSubpath()
+        else:
+            # Non contiguous
+            path.moveTo(pfrom.x, pfrom.y + pixelSize)
+            path.lineTo(pfrom.x, pfrom.y)
+            path.lineTo(right, pfrom.y)
+            path.lineTo(right, pfrom.y + pixelSize)
+            path.closeSubpath()
+            path.moveTo(pto.x + byteWidth, pto.y + pixelSize)
+            path.lineTo(pto.x + byteWidth, pto.y)
+            path.lineTo(left, pto.y)
+            path.lineTo(left, pto.y + pixelSize)
+            path.closeSubpath()
+    else:
+        # General case
+        pfrom = pixelFromBytePosition(indexFrom)
+        pto = pixelFromBytePosition(indexToOutside)
+        path.moveTo(left, pfrom.y + pixelSize)
+        path.lineTo(pfrom.x, pfrom.y + pixelSize)
+        path.lineTo(pfrom.x, pfrom.y)
+        path.lineTo(right, pfrom.y)
+        path.lineTo(right, pto.y)
+        path.lineTo(pto.x, pto.y)
+        path.lineTo(pto.x, pto.y + pixelSize)
+        path.lineTo(left, pto.y + pixelSize)
+        path.closeSubpath()
+
+    return path
 
 
 class PixelBrowserWidget(Qt.QWidget):
@@ -327,7 +389,7 @@ class PixelBrowserWidget(Qt.QWidget):
 
         painter.restore()
 
-    def _pixelFromBytePosition(self, position: int) -> Qt.QPoint:
+    def _pixelFromBytePosition(self, position: int) -> PixelSelection:
         """Return the left-top pcorner position of a memory position."""
         relativePosition = position - self.__pos
         ppe = pixel_per_element(self.__colorMode)
@@ -340,10 +402,20 @@ class PixelBrowserWidget(Qt.QWidget):
             nbTiles, tp = divmod(pixelIndex, 8 * 8)
             ty, tx = divmod(nbTiles, nbTilesPerLine)
             y, x = divmod(tp, 8)
-            return Qt.QPoint(tx * 8 + x, ty * 8 + y) * self.__zoom
+            return PixelSelection(
+                x=(tx * 8 + x) * self.__zoom,
+                y=(ty * 8 + y) * self.__zoom,
+                tileX=(tx * 8) * self.__zoom,
+                tileY=(ty * 8) * self.__zoom,
+            )
         else:
             y, x = divmod(pixelIndex, width)
-            return Qt.QPoint(x, y) * self.__zoom
+            return PixelSelection(
+                x=x * self.__zoom,
+                y=y * self.__zoom,
+                tileX=None,
+                tileY=None
+            )
 
     def _createSelectionPath(self) -> Qt.QPainterPath | None:
         selection = self.selection()
@@ -353,48 +425,72 @@ class PixelBrowserWidget(Qt.QWidget):
         bytesPerLine = self.bytesPerLine()
         ppe = pixel_per_element(self.__colorMode)
         bpe = byte_per_element(self.__colorMode)
-        pwidth = self.__zoom * ppe
+        byteWidth = self.__zoom * ppe
+        pixelSize = self.__zoom
 
-        # FIXME: Implement when it's tiled
-        path = Qt.QPainterPath()
+        if self.__pixelOrder == ImagePixelOrder.TILED_8X8:
+            pfrom = self._pixelFromBytePosition(selection[0])
+            pto = self._pixelFromBytePosition(selection[1])
+            assert pfrom.tileX is not None
+            assert pfrom.tileY is not None
+            assert pto.tileX is not None
+            assert pto.tileY is not None
 
-        if selection[1] - selection[0] <= bytesPerLine:
-            pfrom  =self._pixelFromBytePosition(selection[0])
-            pto  =self._pixelFromBytePosition(selection[1] - bpe)
-            if pfrom.y() == pto.y():
-                # Same line
-                path.moveTo(pfrom.x(), pfrom.y() + self.__zoom)
-                path.lineTo(pfrom)
-                path.lineTo(pto.x() + pwidth, pto.y())
-                path.lineTo(pto.x() + pwidth, pto.y() + self.__zoom)
-                path.closeSubpath()
+            if pfrom.tileX == pto.tileX and pfrom.tileY == pto.tileY:
+                # Back to the contiguous memory
+                assert pfrom.tileX is not None
+                return contiguousMemorySelection(
+                    indexFrom=selection[0],
+                    indexToInside=selection[1] - bpe,
+                    indexToOutside=selection[1],
+                    left=pfrom.tileX,
+                    right=pfrom.tileX + 8 * self.__zoom,
+                    byteWidth=byteWidth,
+                    pixelSize=self.__zoom,
+                    bytesPerLine=8 // ppe * bpe,
+                    pixelFromBytePosition=self._pixelFromBytePosition,
+                )
             else:
-                # Non contiguous
-                path.moveTo(pfrom.x(), pfrom.y() + self.__zoom)
-                path.lineTo(pfrom)
-                path.lineTo(width * self.__zoom, pfrom.y())
-                path.lineTo(width * self.__zoom, pfrom.y() + self.__zoom)
+                # General tile case
+                sameTileY = pfrom.tileY == pto.tileY
+                path = Qt.QPainterPath()
+                # part on top
+                path.moveTo(pfrom.x, pfrom.y + 1 * pixelSize)
+                path.lineTo(pfrom.x, pfrom.y)
+                path.lineTo(pfrom.tileX + 8 * pixelSize, pfrom.y)
+                path.lineTo(pfrom.tileX + 8 * pixelSize, pfrom.tileY)
+                if not sameTileY:
+                    path.lineTo(width * pixelSize, pfrom.tileY)
+                    # part on bottom
+                    path.lineTo(width * pixelSize, pto.tileY)
+                if not sameTileY or pto.y != pto.tileY:
+                    path.lineTo(pto.tileX + 8 * pixelSize, pto.tileY)
+                    path.lineTo(pto.tileX + 8 * pixelSize, pto.y)
+                path.lineTo(pto.x, pto.y)
+                path.lineTo(pto.x, pto.y + pixelSize)
+                path.lineTo(pto.tileX, pto.y + pixelSize)
+                path.lineTo(pto.tileX, pto.tileY + 8 * pixelSize)
+                if not sameTileY:
+                    path.lineTo(0, pto.tileY + 8 * pixelSize)
+                    # back on top
+                    path.lineTo(0, pfrom.tileY + 8 * pixelSize)
+                if not sameTileY or pfrom.y != pfrom.tileY + 7 * pixelSize:
+                    path.lineTo(pfrom.tileX, pfrom.tileY + 8 * pixelSize)
+                    path.lineTo(pfrom.tileX, pfrom.y + 1 * pixelSize)
                 path.closeSubpath()
-                path.moveTo(pto.x() + pwidth, pto.y() + self.__zoom)
-                path.lineTo(pto.x() + pwidth, pto.y())
-                path.lineTo(0, pto.y())
-                path.lineTo(0, pto.y() + self.__zoom)
-                path.closeSubpath()
+                return path
         else:
-            # General case
-            pfrom  =self._pixelFromBytePosition(selection[0])
-            pto  =self._pixelFromBytePosition(selection[1])
-            path.moveTo(0, pfrom.y() + self.__zoom)
-            path.lineTo(pfrom.x(), pfrom.y() + self.__zoom)
-            path.lineTo(pfrom)
-            path.lineTo(width * self.__zoom, pfrom.y())
-            path.lineTo(width * self.__zoom, pto.y())
-            path.lineTo(pto)
-            path.lineTo(pto.x(), pto.y() + self.__zoom)
-            path.lineTo(0, pto.y() + self.__zoom)
-            path.closeSubpath()
-
-        return path
+            return contiguousMemorySelection(
+                indexFrom=selection[0],
+                indexToInside=selection[1] - bpe,
+                indexToOutside=selection[1],
+                left=0,
+                right=width * self.__zoom,
+                byteWidth=byteWidth,
+                pixelSize=self.__zoom,
+                bytesPerLine=bytesPerLine,
+                pixelFromBytePosition=self._pixelFromBytePosition,
+            )
 
     def _positionFromPixel(self, pos: Qt.QPoint) -> int:
         x = pos.x() // self.__zoom
