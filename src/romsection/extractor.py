@@ -192,6 +192,7 @@ class Extractor(Qt.QWidget):
                 mem = MemoryMap(
                     byte_offset=current_offset,
                     byte_length=length,
+                    byte_codec=ByteCodec.RAW,
                     data_type=DataType.UNKNOWN,
                 )
                 self._memoryMapList.insertObject(index, mem)
@@ -289,7 +290,7 @@ class Extractor(Qt.QWidget):
         if mem is None:
             return
         data = self._rom.extract_data(mem)
-        if mem.byte_codec == ByteCodec.RAW:
+        if mem.byte_codec in (None, ByteCodec.RAW):
             address = mem.byte_offset
         else:
             # Absolute ROM location have no meaning here
@@ -361,7 +362,7 @@ class Extractor(Qt.QWidget):
         if mem is None:
             return
 
-        if mem.byte_codec != ByteCodec.RAW:
+        if mem.byte_codec not in (None, ByteCodec.RAW):
             # Actually we can't split such memory
             return
 
@@ -411,7 +412,7 @@ class Extractor(Qt.QWidget):
         if mem is None:
             return
 
-        if mem.byte_codec != ByteCodec.RAW:
+        if mem.byte_codec not in (None, ByteCodec.RAW):
             # Actually we can't split such memory
             return
 
@@ -432,7 +433,7 @@ class Extractor(Qt.QWidget):
         if selection is None:
             return
 
-        if selection[0] != 0:
+        if selection[0] != mem.byte_offset:
             prevMem = MemoryMap(
                 byte_offset=mem.byte_offset,
                 byte_length=selection[0] - mem.byte_offset,
@@ -446,10 +447,12 @@ class Extractor(Qt.QWidget):
             byte_offset=selection[0],
             byte_length=selection[1] - selection[0],
             byte_codec=mem.byte_codec,
-            data_type=DataType.UNKNOWN,
+            data_type=DataType.IMAGE,
+            image_color_mode=self._pixelBrowser.colorMode(),
+            image_pixel_order=self._pixelBrowser.pixelOrder(),
         )
 
-        if selection[1] != mem.byte_length:
+        if selection[1] != mem.byte_offset + mem.byte_length:
             nextMem = MemoryMap(
                 byte_offset=selection[1],
                 byte_length=mem.byte_offset + mem.byte_length - selection[1],
@@ -775,7 +778,7 @@ class Extractor(Qt.QWidget):
             elif mem.data_type == DataType.UNKNOWN:
                 data = self._rom.extract_data(mem)
                 memory = io.BytesIO(data.tobytes())
-                if mem.byte_codec == ByteCodec.RAW:
+                if mem.byte_codec in (None, ByteCodec.RAW):
                     address = mem.byte_offset
                 else:
                     # Absolute ROM location have no meaning here
