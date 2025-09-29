@@ -30,6 +30,8 @@ class MemoryMapListModel(ObjectListModel):
                 return Qt.QIcon("icons:image.png")
             if mem.data_type == DataType.PALETTE:
                 return Qt.QIcon("icons:palette.png")
+            if mem.data_type == DataType.TILE_SET:
+                return Qt.QIcon("icons:tileset.png")
             if mem.data_type == DataType.UNKNOWN:
                 return Qt.QIcon("icons:unknown.png")
             if mem.data_type == DataType.PADDING:

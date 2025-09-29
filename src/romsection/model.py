@@ -15,6 +15,13 @@ class DataType(enum.Enum):
     PALETTE = enum.auto()
     """Memory map compound by a set of colors."""
 
+    TILE_SET = enum.auto()
+    """
+    Memory map compound by a set of tiles of the same size.
+
+    The properties of the IMAGE are used, but are applied to a single tile.
+    """
+
     UNKNOWN = enum.auto()
     """Memory map which is not yet identified."""
 

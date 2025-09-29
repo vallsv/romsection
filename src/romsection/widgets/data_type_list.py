@@ -31,6 +31,12 @@ class DataTypeList(Qt.QListWidget):
         self.addItem(item)
 
         item = Qt.QListWidgetItem()
+        item.setText(f"Tile set")
+        item.setData(Qt.Qt.UserRole, DataType.TILE_SET)
+        item.setIcon(Qt.QIcon("icons:tileset.png"))
+        self.addItem(item)
+
+        item = Qt.QListWidgetItem()
         item.setText(f"Padding")
         item.setData(Qt.Qt.UserRole, DataType.PADDING)
         item.setIcon(Qt.QIcon("icons:padding.png"))

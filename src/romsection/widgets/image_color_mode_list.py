@@ -22,6 +22,7 @@ class ImageColorModeList(Qt.QListWidget):
         self.addItem(item)
 
         rect = self.visualItemRect(item)
+        self.setMinimumSize(150, -1)
         self.setMaximumHeight(rect.height() * self.count() + 4)
 
     def selectedImageColorMode(self) -> ImageColorMode | None:

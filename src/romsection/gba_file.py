@@ -233,3 +233,53 @@ class GBAFile:
                 pass
 
         return data
+
+    def tile_set_data(self, mem: MemoryMap) -> numpy.ndarray:
+        """
+        Return tile set data from a memory map.
+
+        It can return:
+        - A 3D array with indexed data as integer, shaped with axes TILE_ID, Y, X
+        - A 4D array with 0..255 integer, shaped with axes TILE_ID,Y, X, ARGB
+
+        Raises:
+            ValueError: If the memory can't be read.
+        """
+        if mem.data_type != DataType.TILE_SET:
+            raise ValueError(f"Memory map 0x{mem.byte_offset:08X} is not an image")
+
+        data = self.extract_data(mem)
+
+        if mem.image_color_mode == ImageColorMode.INDEXED_4BIT:
+            data = convert_8bx1_to_4bx2(data)
+
+        if mem.image_shape is not None:
+            try:
+                data.shape = -1, 8, 8
+            except Exception:
+                data.shape = -1, 8, 8
+        else:
+            data.shape = -1, 8, 8
+
+        palette_data = None
+        if mem.image_palette_offset is not None:
+            try:
+                palette_map = self.memory_map_from_offset(mem.image_palette_offset)
+            except ValueError:
+                logging.warning("Error while accessing palette memory map", exc_info=True)
+                pass
+            else:
+                try:
+                    palette_data = self.palette_data(palette_map)
+                except ValueError:
+                    logging.warning("Error while accessing palette data", exc_info=True)
+                    pass
+
+        if palette_data is not None:
+            try:
+                data = palette_data[0][data]
+            except Exception:
+                logging.warning("Error while processing RGB data from palette", exc_info=True)
+                pass
+
+        return data
