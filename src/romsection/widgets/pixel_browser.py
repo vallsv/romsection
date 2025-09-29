@@ -38,7 +38,7 @@ class PixelBrowser(Qt.QFrame):
         self.__toolbar.addWidget(self.__zoom)
 
         self.__pixelWidth = Qt.QSpinBox(self.__toolbar)
-        self.__pixelWidth.setRange(1, 128)
+        self.__pixelWidth.setRange(1, 128 * 4)
         self.__pixelWidth.setValue(self.__widget.pixelWidth())
         self.__toolbar.addWidget(self.__pixelWidth)
 
@@ -164,6 +164,9 @@ class PixelBrowser(Qt.QFrame):
         self.__widget.setMemory(memory)
         self.__scroll.setValue(0)
         self.__scroll.setRange(0, self.__widget.memoryLength())
+
+    def address(self) -> int:
+        return self.__address
 
     def colorMode(self) -> ImageColorMode:
         return self.__widget.colorMode()
