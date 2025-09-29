@@ -426,7 +426,7 @@ class PixelBrowserWidget(Qt.QWidget):
         ppe = pixel_per_element(self.__colorMode)
         bpe = byte_per_element(self.__colorMode)
         byteIndex = (pixelIndex // ppe) * bpe
-        return self.__pos + byteIndex
+        return min(max(self.__pos + byteIndex, 0), self.__len)
 
     def mousePressEvent(self, event: Qt.QMouseEvent):
         if event.button() == Qt.Qt.LeftButton:
