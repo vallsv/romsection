@@ -7,7 +7,6 @@ import enum
 import typing
 import numpy
 import traceback
-import contextlib
 from PyQt5 import Qt
 
 from .lz77 import decompress as decompress_lz77
@@ -29,15 +28,7 @@ from .widgets.palette_size_list import PaletteSizeList
 from .widgets.pixel_browser import PixelBrowser
 from .widgets.tile_set_browser import TileSetBrowser
 from .gba_file import GBAFile, ByteCodec, MemoryMap, ImageColorMode, ImagePixelOrder, DataType
-
-
-@contextlib.contextmanager
-def blockSignals(widget: Qt.QWidget):
-    try:
-        old = widget.blockSignals(True)
-        yield
-    finally:
-        widget.blockSignals(old)
+from .qt_utils import blockSignals, exceptionAsMessageBox
 
 
 def uniqueValueElseNone(data: list[typing.Any]):
@@ -157,14 +148,8 @@ class Extractor(Qt.QWidget):
         spriteCodec.addWidget(self._paletteCombo)
         spriteCodec.addWidget(self._shapeList)
         spriteCodec.addWidget(self._pixelOrderList)
-        spriteCodec.setStretchFactor(self._byteCodecList, 0)
-        spriteCodec.setStretchFactor(self._dataTypeList, 0)
-        spriteCodec.setStretchFactor(self._paletteSizeList, 0)
-        spriteCodec.setStretchFactor(self._paletteCombo, 0)
-        spriteCodec.setStretchFactor(self._colorModeList, 0)
         spriteCodec.setStretchFactor(self._shapeList, 1)
-        spriteCodec.setStretchFactor(self._pixelOrderList, 0)
-        spriteCodec.addStretch(1)
+        spriteCodec.addStretch(0)
 
         main = Qt.QHBoxLayout(self)
         main.addLayout(toolbar)
@@ -173,7 +158,19 @@ class Extractor(Qt.QWidget):
         main.addLayout(self._view)
         main.setStretchFactor(self._view, 1)
 
+        self.setRom(None)
         self._updateNoMemoryMapSelected()
+
+    def loadFilename(self, filename: str):
+        with exceptionAsMessageBox():
+            try:
+                print(f"ROM filename: {filename}")
+                rom = GBAFile(filename)
+                print(f"ROM size:     {rom.size // 1000 // 1000:.2f}MB")
+            except Exception:
+                raise
+            else:
+                self.setRom(rom)
 
     def _extractUnknown(self):
         offsets = list(self._rom.offsets)
@@ -209,9 +206,14 @@ class Extractor(Qt.QWidget):
             if mem.data_type == DataType.UNKNOWN:
                 self._memoryMapList.removeObject(mem)
 
-    def setRom(self, rom: GBAFile):
+    def setRom(self, rom: GBAFile | None):
         self._rom = rom
         self._paletteList.setRom(self._rom)
+        if rom is None:
+            self.setWindowTitle("No ROM loaded")
+        else:
+            filename = os.path.basename(rom.filename)
+            self.setWindowTitle(filename)
 
     def _scanAll(self):
         Qt.QGuiApplication.setOverrideCursor(Qt.QCursor(Qt.Qt.WaitCursor))
