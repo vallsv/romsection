@@ -311,33 +311,41 @@ class Extractor(Qt.QWidget):
 
         mems = self._memView.selectedMemoryMaps()
 
+        if len(mems) == 1:
+            mem = mems[0]
+
+            showRawAsHexa = Qt.QAction(menu)
+            showRawAsHexa.setText("Show raw as hexa")
+            showRawAsHexa.triggered.connect(self._showMemoryMapRawAsHexa)
+            menu.addAction(showRawAsHexa)
+
+            saveRaw = Qt.QAction(menu)
+            saveRaw.setText("Save raw...")
+            saveRaw.triggered.connect(self._saveMemoryMapAsRaw)
+            saveRaw.setIcon(Qt.QIcon("icons:save.png"))
+            menu.addAction(saveRaw)
+
+            if mem.byte_codec not in (None, ByteCodec.RAW):
+                menu.addSeparator()
+
+                showDataAsHexa = Qt.QAction(menu)
+                showDataAsHexa.setText("Show data as hexa")
+                showDataAsHexa.triggered.connect(self._showMemoryMapDataAsHexa)
+                menu.addAction(showDataAsHexa)
+
+                saveDat = Qt.QAction(menu)
+                saveDat.setText("Save decompressed...")
+                saveDat.triggered.connect(self._saveMemoryMapAsDat)
+                saveDat.setIcon(Qt.QIcon("icons:save.png"))
+                menu.addAction(saveDat)
+
+            menu.addSeparator()
+
         remove = Qt.QAction(menu)
         remove.setText("Remove memory map")
         remove.triggered.connect(self._removeMemoryMap)
+        remove.setIcon(Qt.QIcon("icons:remove.png"))
         menu.addAction(remove)
-
-        if len(mems) == 1:
-            menu.addSeparator()
-
-            rawHexa = Qt.QAction(menu)
-            rawHexa.setText("Show raw as hexa")
-            rawHexa.triggered.connect(self._showMemoryMapRawAsHexa)
-            menu.addAction(rawHexa)
-
-            dataHexa = Qt.QAction(menu)
-            dataHexa.setText("Show data as hexa")
-            dataHexa.triggered.connect(self._showMemoryMapDataAsHexa)
-            menu.addAction(dataHexa)
-
-            saveRaw = Qt.QAction(menu)
-            saveRaw.setText("Save as raw...")
-            saveRaw.triggered.connect(self._saveMemoryMapAsRaw)
-            menu.addAction(saveRaw)
-
-            saveDat = Qt.QAction(menu)
-            saveDat.setText("Save as dat...")
-            saveDat.triggered.connect(self._saveMemoryMapAsDat)
-            menu.addAction(saveDat)
 
         menu.exec(globalPos)
 
