@@ -106,6 +106,8 @@ class Extractor(Qt.QWidget):
 
         self._dataTypeList = DataTypeList(self)
         self._dataTypeList.itemSelectionChanged.connect(self._onDataTypeSelected)
+        self._dataTypeList.setMinimumWidth(180)
+        self._dataTypeList.setMaximumWidth(180)
 
         self._paletteSizeList = PaletteSizeList(self)
         self._paletteSizeList.itemSelectionChanged.connect(self._onPaletteSizeSelected)
@@ -121,11 +123,13 @@ class Extractor(Qt.QWidget):
         self._colorModeList = ImageColorModeList(self)
         self._colorModeList.itemSelectionChanged.connect(self._onImageColorModeSelected)
 
-        self._shapeList = ShapeList(self)
-        self._shapeList.itemSelectionChanged.connect(self._onShapeSelected)
-
         self._pixelOrderList = ImagePixelOrderList(self)
         self._pixelOrderList.itemSelectionChanged.connect(self._onImagePixelOrderSelected)
+
+        self._shapeList = ShapeList(self)
+        self._shapeList.itemSelectionChanged.connect(self._onShapeSelected)
+        self._shapeList.setMinimumWidth(180)
+        self._shapeList.setMaximumWidth(180)
 
         self._nothing = Qt.QWidget(self)
 
@@ -166,9 +170,9 @@ class Extractor(Qt.QWidget):
         spriteCodec.addWidget(self._dataTypeList)
         spriteCodec.addWidget(self._paletteSizeList)
         spriteCodec.addWidget(self._colorModeList)
+        spriteCodec.addWidget(self._pixelOrderList)
         spriteCodec.addWidget(self._paletteCombo)
         spriteCodec.addWidget(self._shapeList)
-        spriteCodec.addWidget(self._pixelOrderList)
         spriteCodec.setStretchFactor(self._shapeList, 1)
         spriteCodec.addStretch(0)
 
