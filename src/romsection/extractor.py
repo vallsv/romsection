@@ -205,7 +205,7 @@ class Extractor(Qt.QWidget):
             current_offset = offset.byte_offset + (offset.byte_length or 1)
 
     def _removeUnknown(self):
-        for mem in self._rom.offsets:
+        for mem in reversed(self._rom.offsets):
             if mem.data_type == DataType.UNKNOWN:
                 self._memoryMapList.removeObject(mem)
 
