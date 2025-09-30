@@ -132,6 +132,10 @@ class MemoryMap:
     Human comment
     """
 
+    @property
+    def byte_end(self) -> int:
+        return self.byte_offset + self.byte_length
+
     def to_dict(self) -> dict[str, typing.Any]:
         description:  dict[str, typing.Any] = {
             "byte_offset": self.byte_offset,

@@ -7,6 +7,7 @@ import time
 import numpy
 import typing
 import dataclasses
+import hashlib
 
 from .lz77 import decompress as decompress_lz77
 from .lz77 import dryrun as dryrun_lz77
@@ -42,6 +43,21 @@ class GBAFile:
 
     def palettes(self) -> list[MemoryMap]:
         return [m for m in self.offsets if m.data_type == DataType.PALETTE]
+
+    @property
+    def game_title(self):
+        f = self._f
+        f.seek(0xA0, os.SEEK_SET)
+        data = f.read(12)
+        title = data.rstrip(b"\x00").decode()
+        return title
+
+    @property
+    def sha256(self) -> str:
+        f = self._f
+        f.seek(0, os.SEEK_SET)
+        m = hashlib.file_digest(f, "sha256")
+        return m.hexdigest()
 
     @property
     def filename(self):

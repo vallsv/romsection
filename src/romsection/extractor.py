@@ -29,6 +29,8 @@ from .widgets.pixel_browser import PixelBrowser
 from .widgets.tile_set_browser import TileSetBrowser
 from .gba_file import GBAFile, ByteCodec, MemoryMap, ImageColorMode, ImagePixelOrder, DataType
 from .qt_utils import blockSignals, exceptionAsMessageBox
+from .path_utils import resolve_abspath
+from .behaviors import file_dialog
 
 
 def uniqueValueElseNone(data: list[typing.Any]):
@@ -48,6 +50,9 @@ class Extractor(Qt.QWidget):
         self._paletteList =  PaletteFilterProxyModel(self)
         self._paletteList.setSourceModel(self._memoryMapList)
 
+        self._dialogDirectory = os.getcwd()
+        self._filename: str | None = None
+
         toolbar = Qt.QVBoxLayout()
         toolbar.setContentsMargins(0, 0, 0, 0)
         scanAll = Qt.QPushButton(self)
@@ -56,12 +61,12 @@ class Extractor(Qt.QWidget):
         toolbar.addWidget(scanAll)
 
         loadInfo = Qt.QPushButton(self)
-        loadInfo.clicked.connect(self._loadInfo)
+        loadInfo.clicked.connect(self.loadFromDialog)
         loadInfo.setText("Load Info")
         toolbar.addWidget(loadInfo)
 
         saveInfo = Qt.QPushButton(self)
-        saveInfo.clicked.connect(self._saveInfo)
+        saveInfo.clicked.connect(self.save)
         saveInfo.setText("Save Info")
         toolbar.addWidget(saveInfo)
 
@@ -159,17 +164,76 @@ class Extractor(Qt.QWidget):
         main.setStretchFactor(self._view, 1)
 
         self.setRom(None)
-        self._updateNoMemoryMapSelected()
+
+    def loadFromDialog(self):
+        filename = file_dialog.getTomlOrRomFilenameFromDialog(self)
+        if filename is None:
+            return
+        self.loadFilename(filename)
 
     def loadFilename(self, filename: str):
         with exceptionAsMessageBox():
+            if filename.endswith(".toml"):
+                self._loadTomlFile(filename)
+            else:
+                self._loadRomFile(filename)
+
+    def _loadRomFile(self, filename: str):
+        try:
+            rom = GBAFile(filename)
+        except Exception:
+            raise
+        else:
+            header = MemoryMap(
+                byte_offset=0,
+                byte_codec=ByteCodec.RAW,
+                byte_length=192,
+                data_type=DataType.GBA_ROM_HEADER,
+            )
+            other = MemoryMap(
+                byte_offset=header.byte_end,
+                byte_codec=ByteCodec.RAW,
+                byte_length=rom.size - header.byte_length,
+                data_type=DataType.UNKNOWN,
+            )
+            rom.offsets.append(header)
+            rom.offsets.append(other)
+            self.setRom(rom)
+
+    def _loadTomlFile(self, filename: str):
+        localDirectory = os.path.dirname(filename)
+        with exceptionAsMessageBox():
             try:
-                print(f"ROM filename: {filename}")
-                rom = GBAFile(filename)
-                print(f"ROM size:     {rom.size // 1000 // 1000:.2f}MB")
+                with open(filename, "rt") as f:
+                    data = rtoml.load(f)
+                try:
+                    romInfo = data["rom"]
+                    gameTitle = romInfo["game_title"]
+                    romFilename = romInfo.get("local_filename")
+                except Exception:
+                    raise RuntimeError(f"Invalid file format '{filename}'")
+
+                if romFilename is None:
+                    Qt.QMessageBox.error("Error", "No ROM file defined")
+                else:
+                    romFilename = resolve_abspath(romFilename, localDirectory)
+                    if not os.path.exists(romFilename):
+                        Qt.QMessageBox.error("Error", f"ROM file for '{gameTitle}' not found")
+                        romFilename = None
+                if romFilename is None:
+                    romFilename = file_dialog.getRomFilenameFromDialog(self)
+                    if romFilename is None:
+                        return
+
+                rom = GBAFile(romFilename)
+                for k, v in data.items():
+                    if k.startswith("memory_map:"):
+                        mem = MemoryMap.from_dict(v)
+                        rom.offsets.append(mem)
             except Exception:
                 raise
             else:
+                self._filename = filename
                 self.setRom(rom)
 
     def _extractUnknown(self):
@@ -208,18 +272,21 @@ class Extractor(Qt.QWidget):
 
     def setRom(self, rom: GBAFile | None):
         self._rom = rom
-        self._paletteList.setRom(self._rom)
+        self._paletteList.setRom(rom)
         if rom is None:
+            self._memoryMapList.setObjectList([])
             self.setWindowTitle("No ROM loaded")
         else:
+            self._memoryMapList.setObjectList(rom.offsets)
             filename = os.path.basename(rom.filename)
             self.setWindowTitle(filename)
+        self._updateNoMemoryMapSelected()
 
     def _scanAll(self):
         Qt.QGuiApplication.setOverrideCursor(Qt.QCursor(Qt.Qt.WaitCursor))
         try:
             self._rom.scan_all()
-            self._updateMemoryMapList()
+            self._memoryMapList.setObjectList(self._rom.offsets)
         finally:
             Qt.QGuiApplication.restoreOverrideCursor()
 
@@ -479,29 +546,38 @@ class Extractor(Qt.QWidget):
         if nextMem is not None:
             self._memoryMapList.insertObject(index, nextMem)
 
-    def _loadInfo(self):
-        try:
-            with open(f"{self._rom.filename}.toml", "rt") as f:
-                data = rtoml.load(f)
-            self._rom.offsets.clear()
-            for k, v in data.items():
-                if k.startswith("memory_map:"):
-                    mem = MemoryMap.from_dict(v)
-                    self._rom.offsets.append(mem)
-        except Exception:
-            # FIXME: Display it in a dialog
-            logging.error("Error while loading file", exc_info=True)
-        self._updateMemoryMapList()
+    def save(self):
+        """Save to the loadined file"""
+        self._saveFilename(self._filename)
 
-    def _updateMemoryMapList(self):
-        self._memoryMapList.setObjectList(self._rom.offsets)
+    def saveAs(self):
+        """Save as a new file from a file dialog."""
+        self._saveFilename(None)
 
-    def _saveInfo(self):
+    def _saveFilename(self, filename: str | None):
+        if self._rom is None:
+            raise ValueError()
+
+        if filename is None:
+            filename = file_dialog.getSaveTomlFilenameFromDialog(self)
+            if filename is None:
+                return
+
+        assert filename is not None
+
         try:
+            rom = {}
+            rom["game_title"] = self._rom.game_title
+            rom["sha256"] = self._rom.sha256
+            localDir = os.path.dirname(filename)
+            relativePath = os.path.relpath(self._rom.filename, start=localDir)
+            rom["local_filename"] = relativePath
+
             data = {}
+            data["rom"] = rom
             for mem in self._rom.offsets:
                 data[f"memory_map:{mem.byte_offset:08X}"] = mem.to_dict()
-            with open(f"{self._rom.filename}.toml", "wt") as f:
+            with open(filename, "wt") as f:
                 rtoml.dump(data, f)
         except Exception:
             # FIXME: Display it in a dialog
