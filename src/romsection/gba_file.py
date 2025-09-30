@@ -23,6 +23,12 @@ class GBAFile:
         self.offsets: list[MemoryMap] = []
         f.seek(0, os.SEEK_END)
         self._size = f.tell()
+        if self._size < 0xE4:
+            raise ValueError(f"File '{filename}' is smaller than the GBA header")
+        f.seek(0xB2, os.SEEK_SET)
+        fixed_value = f.read(1)
+        if fixed_value[0] != 0x96:
+            raise ValueError(f"File '{filename}' does not have a valid GBA header")
         f.seek(0, os.SEEK_SET)
         self._f = f
 
