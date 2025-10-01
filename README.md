@@ -20,6 +20,18 @@ That's tuff process.
 - Hexa and pixel browser for unidentified memory
 - Viewer for image, palette, tile set, GBA header
 
+# Install
+
+```
+pip install git+https://github.com/vallsv/romsection
+```
+
+# Launch
+
+```
+python -m romsection
+```
+
 # Useful resources
 
 The following resources provide a very useful information on different
