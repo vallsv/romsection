@@ -31,6 +31,7 @@ Resources:
 import io
 import os
 import numpy
+from collections.abc import Callable
 
 
 def _read_u8(f):
@@ -88,7 +89,12 @@ def decompress(input_stream: io.RawIOBase) -> numpy.ndarray:
     return result
 
 
-def dryrun(input_stream: io.RawIOBase, min_length: int | None = None, max_length: int | None = None) -> int:
+def dryrun(
+    input_stream: io.RawIOBase,
+    min_length: int | None = None,
+    max_length: int | None = None,
+    must_stop: Callable[[], bool] | None = None,
+) -> int:
     """Decompress a data stream without extraction the result.
 
     It a faster way to check the validity and get the size of the block.
@@ -125,6 +131,8 @@ def dryrun(input_stream: io.RawIOBase, min_length: int | None = None, max_length
                     raise ValueError("Not a valid GBA LZ77 stream")
 
                 pos += length
+        if must_stop is not None and must_stop():
+            raise StopIteration
     if pos != decompressed_length:
         raise ValueError("Not a valid GBA LZ77 stream")
     return decompressed_length

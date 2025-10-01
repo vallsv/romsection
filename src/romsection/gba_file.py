@@ -67,26 +67,48 @@ class GBAFile:
     def size(self):
         return self._size
 
-    def scan_all(self, skip_valid_blocks=False):
-        self.scan_for_lz77(0, self.size, skip_valid_blocks=skip_valid_blocks)
+    def scan_all(self, skip_valid_blocks: bool = False):
+        offsets: list[MemoryMap] = []
+
+        def on_found(mem: MemoryMap):
+            offsets.append(mem)
+
+        self.scan_for_lz77(
+            0,
+            self.size,
+            skip_valid_blocks=skip_valid_blocks,
+            on_found=on_found,
+            must_stop=lambda: False,
+        )
+        self.offsets = offsets
 
     def scan_for_lz77(
         self,
         offset_from: int,
         offset_to: int,
-        skip_valid_blocks=False
+        must_stop: typing.Callable[[], bool],
+        on_found: typing.Callable[[MemoryMap], None],
+        skip_valid_blocks=False,
     ):
-        self.offsets.clear()
+        """
+        Scan a range of the memory to find LZ77 valid compressed memory.
+
+        Raises:
+            StopIteration: If a stop was requested
+        """
         f = self._f
         offset = offset_from
         f.seek(offset, os.SEEK_SET)
         stream = f
         while offset < offset_to:
+            if must_stop():
+                raise StopIteration
             try:
                 size = dryrun_lz77(
                     stream,
                     min_length=16,
                     max_length=600*400*2,
+                    must_stop=must_stop
                 )
             except ValueError:
                 size = None
@@ -101,7 +123,7 @@ class GBAFile:
                     byte_codec=ByteCodec.LZ77,
                     data_type=DataType.IMAGE,
                 )
-                self.offsets.append(mem)
+                on_found(mem)
             if not skip_valid_blocks:
                 offset += 1
                 stream.seek(offset, os.SEEK_SET)
