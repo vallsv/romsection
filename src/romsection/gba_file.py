@@ -68,12 +68,20 @@ class GBAFile:
         return self._size
 
     def scan_all(self, skip_valid_blocks=False):
+        self.scan_for_lz77(0, self.size, skip_valid_blocks=skip_valid_blocks)
+
+    def scan_for_lz77(
+        self,
+        offset_from: int,
+        offset_to: int,
+        skip_valid_blocks=False
+    ):
         self.offsets.clear()
         f = self._f
-        f.seek(0, os.SEEK_SET)
-        offset = 0
+        offset = offset_from
+        f.seek(offset, os.SEEK_SET)
         stream = f
-        while offset < self._size:
+        while offset < offset_to:
             try:
                 size = dryrun_lz77(
                     stream,
