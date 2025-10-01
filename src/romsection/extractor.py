@@ -7,6 +7,7 @@ import enum
 import typing
 import numpy
 import traceback
+import queue
 from PyQt5 import Qt
 
 from .lz77 import decompress as decompress_lz77
@@ -31,6 +32,7 @@ from .gba_file import GBAFile, ByteCodec, MemoryMap, ImageColorMode, ImagePixelO
 from .qt_utils import blockSignals, exceptionAsMessageBox
 from .path_utils import resolve_abspath
 from .behaviors import file_dialog
+from .behaviors import search_lz77
 
 
 def uniqueValueElseNone(data: list[typing.Any]):
@@ -75,12 +77,6 @@ class Extractor(Qt.QWidget):
         toolbar.addAction(saveAsAction)
 
         toolbar.addSeparator()
-
-        scanAll = Qt.QAction(self)
-        scanAll.triggered.connect(self._scanAll)
-        scanAll.setText("Scan LZ77 sections from the ROM")
-        scanAll.setIcon(Qt.QIcon("icons:search.png"))
-        toolbar.addAction(scanAll)
 
         extractUnknown = Qt.QAction(self)
         extractUnknown.triggered.connect(self._extractUnknown)
@@ -301,13 +297,58 @@ class Extractor(Qt.QWidget):
             self.setWindowTitle(filename)
         self._updateNoMemoryMapSelected()
 
-    def _scanAll(self):
+    def _searchLZ77(self):
+        mem = self._memView.selectedMemoryMap()
+        if mem is None:
+            return
+
+        assert self._rom is not None
+
+        memoryMapQueue: queue.Queue[MemoryMap] = queue.Queue()
+
         Qt.QGuiApplication.setOverrideCursor(Qt.QCursor(Qt.Qt.WaitCursor))
-        try:
-            self._rom.scan_all()
-            self._memoryMapList.setObjectList(self._rom.offsets)
-        finally:
-            Qt.QGuiApplication.restoreOverrideCursor()
+        pool = Qt.QThreadPool.globalInstance()
+
+        nbFound = 0
+
+        def flushQueue():
+            nonlocal nbFound
+            try:
+                lz77mem = memoryMapQueue.get(block=False)
+                if nbFound == 0:
+                    # At the first found we remove the parent memory
+                    self._memoryMapList.removeObject(mem)
+                nbFound += 1
+                index = self._memoryMapList.indexAfterOffset(lz77mem.byte_offset)
+                self._memoryMapList.insertObject(index, lz77mem)
+            except queue.Empty:
+                pass
+
+        runnable = search_lz77.SearchLZ77Runnable(
+            rom=self._rom,
+            memoryRange=(mem.byte_offset, mem.byte_end),
+            queue=memoryMapQueue,
+        )
+
+        dialog = search_lz77.WaitForSearchDialog(self)
+        dialog.registerRunnable(runnable)
+        pool.start(runnable)
+
+        timer = Qt.QTimer(self)
+        timer.timeout.connect(flushQueue)
+        timer.start(1000)
+
+        dialog.exec()
+
+        timer.stop()
+        flushQueue()
+        Qt.QGuiApplication.restoreOverrideCursor()
+
+        Qt.QMessageBox.information(
+            self,
+            "Seatch result",
+            f"{nbFound} potential LZ77 location was found"
+        )
 
     def _showMemoryMapContextMenu(self, pos: Qt.QPoint):
         globalPos = self._memView.mapToGlobal(pos)
@@ -328,6 +369,15 @@ class Extractor(Qt.QWidget):
             saveRaw.triggered.connect(self._saveMemoryMapAsRaw)
             saveRaw.setIcon(Qt.QIcon("icons:save.png"))
             menu.addAction(saveRaw)
+
+            if mem.data_type == DataType.UNKNOWN:
+                menu.addSeparator()
+
+                searchLZ77 = Qt.QAction(menu)
+                searchLZ77.triggered.connect(self._searchLZ77)
+                searchLZ77.setText("Search for LZ77 data...")
+                searchLZ77.setIcon(Qt.QIcon("icons:search.png"))
+                menu.addAction(searchLZ77)
 
             if mem.byte_codec not in (None, ByteCodec.RAW):
                 menu.addSeparator()

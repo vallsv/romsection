@@ -10,6 +10,17 @@ from ..gba_file import MemoryMap, DataType
 
 
 class MemoryMapListModel(ObjectListModel):
+
+    def indexAfterOffset(self, offset: int):
+        # FIXME: Use bisect instead
+        before = None
+        for row in range(self.rowCount()):
+            index = self.index(row, 0)
+            mem = self.object(index)
+            if offset < mem.byte_offset:
+                return row
+        return self.rowCount()
+
     def data(self, index: Qt.QModelIndex, role: int = Qt.Qt.DisplayRole):
         if role in (Qt.Qt.DisplayRole, Qt.Qt.EditRole):
             if not index.isValid():

@@ -67,22 +67,7 @@ class GBAFile:
     def size(self):
         return self._size
 
-    def scan_all(self, skip_valid_blocks: bool = False):
-        offsets: list[MemoryMap] = []
-
-        def on_found(mem: MemoryMap):
-            offsets.append(mem)
-
-        self.scan_for_lz77(
-            0,
-            self.size,
-            skip_valid_blocks=skip_valid_blocks,
-            on_found=on_found,
-            must_stop=lambda: False,
-        )
-        self.offsets = offsets
-
-    def scan_for_lz77(
+    def search_for_lz77(
         self,
         offset_from: int,
         offset_to: int,
@@ -113,7 +98,6 @@ class GBAFile:
             except ValueError:
                 size = None
             except RuntimeError:
-                logging.warning(f"{offset:08X}h skipped")
                 size = None
             else:
                 mem = MemoryMap(
@@ -121,7 +105,7 @@ class GBAFile:
                     byte_length=stream.tell() - offset,
                     byte_payload=size,
                     byte_codec=ByteCodec.LZ77,
-                    data_type=DataType.IMAGE,
+                    data_type=DataType.UNKNOWN,
                 )
                 on_found(mem)
             if not skip_valid_blocks:
