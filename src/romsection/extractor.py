@@ -229,11 +229,11 @@ class Extractor(Qt.QWidget):
                     raise RuntimeError(f"Invalid file format '{filename}'")
 
                 if romFilename is None:
-                    Qt.QMessageBox.error("Error", "No ROM file defined")
+                    Qt.QMessageBox.warning(self, "Error", "No ROM file defined")
                 else:
                     romFilename = resolve_abspath(romFilename, localDirectory)
                     if not os.path.exists(romFilename):
-                        Qt.QMessageBox.error("Error", f"ROM file for '{gameTitle}' not found")
+                        Qt.QMessageBox.warning(self, "Error", f"ROM file for '{gameTitle}' not found")
                         romFilename = None
                 if romFilename is None:
                     romFilename = file_dialog.getRomFilenameFromDialog(self)
