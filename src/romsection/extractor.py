@@ -7,6 +7,7 @@ import enum
 import typing
 import numpy
 import traceback
+import queue
 from PyQt5 import Qt
 
 from .lz77 import decompress as decompress_lz77
@@ -29,6 +30,9 @@ from .widgets.pixel_browser import PixelBrowser
 from .widgets.tile_set_browser import TileSetBrowser
 from .gba_file import GBAFile, ByteCodec, MemoryMap, ImageColorMode, ImagePixelOrder, DataType
 from .qt_utils import blockSignals, exceptionAsMessageBox
+from .path_utils import resolve_abspath
+from .behaviors import file_dialog
+from .behaviors import search_lz77
 
 
 def uniqueValueElseNone(data: list[typing.Any]):
@@ -48,34 +52,43 @@ class Extractor(Qt.QWidget):
         self._paletteList =  PaletteFilterProxyModel(self)
         self._paletteList.setSourceModel(self._memoryMapList)
 
-        toolbar = Qt.QVBoxLayout()
-        toolbar.setContentsMargins(0, 0, 0, 0)
-        scanAll = Qt.QPushButton(self)
-        scanAll.clicked.connect(self._scanAll)
-        scanAll.setText("Scan All")
-        toolbar.addWidget(scanAll)
+        self._dialogDirectory = os.getcwd()
+        self._filename: str | None = None
 
-        loadInfo = Qt.QPushButton(self)
-        loadInfo.clicked.connect(self._loadInfo)
-        loadInfo.setText("Load Info")
-        toolbar.addWidget(loadInfo)
+        style = Qt.QApplication.style()
+        toolbar = Qt.QToolBar(self)
 
-        saveInfo = Qt.QPushButton(self)
-        saveInfo.clicked.connect(self._saveInfo)
-        saveInfo.setText("Save Info")
-        toolbar.addWidget(saveInfo)
+        loadAction = Qt.QAction(self)
+        loadAction.triggered.connect(self.loadFromDialog)
+        loadAction.setText("Load a ROM / a ROM dissection (TOML)")
+        loadAction.setIcon(Qt.QIcon("icons:load.png"))
+        toolbar.addAction(loadAction)
 
-        extractUnknown = Qt.QPushButton(self)
-        extractUnknown.clicked.connect(self._extractUnknown)
-        extractUnknown.setText("Extract unknown")
-        toolbar.addWidget(extractUnknown)
+        saveAction = Qt.QAction(self)
+        saveAction.triggered.connect(self.save)
+        saveAction.setText("Save the ROM dissection")
+        saveAction.setIcon(Qt.QIcon("icons:save.png"))
+        toolbar.addAction(saveAction)
 
-        removeUnknown = Qt.QPushButton(self)
-        removeUnknown.clicked.connect(self._removeUnknown)
-        removeUnknown.setText("Remove unknown")
-        toolbar.addWidget(removeUnknown)
+        saveAsAction = Qt.QAction(self)
+        saveAsAction.triggered.connect(self.saveAs)
+        saveAsAction.setText("Save the ROM dissection into another file")
+        saveAsAction.setIcon(Qt.QIcon("icons:save-as.png"))
+        toolbar.addAction(saveAsAction)
 
-        toolbar.addStretch(1)
+        toolbar.addSeparator()
+
+        extractUnknown = Qt.QAction(self)
+        extractUnknown.triggered.connect(self._extractUnknown)
+        extractUnknown.setText("Create sections for unmapped memory")
+        extractUnknown.setIcon(Qt.QIcon("icons:unknown.png"))
+        toolbar.addAction(extractUnknown)
+
+        removeUnknown = Qt.QAction(self)
+        removeUnknown.triggered.connect(self._removeUnknown)
+        removeUnknown.setText("Remove unknown mapped sections")
+        removeUnknown.setIcon(Qt.QIcon("icons:unknown-remove.png"))
+        toolbar.addAction(removeUnknown)
 
         self._memView = MemoryMapListView(self)
         self._memView.setModel(self._memoryMapList)
@@ -89,6 +102,8 @@ class Extractor(Qt.QWidget):
 
         self._dataTypeList = DataTypeList(self)
         self._dataTypeList.itemSelectionChanged.connect(self._onDataTypeSelected)
+        self._dataTypeList.setMinimumWidth(180)
+        self._dataTypeList.setMaximumWidth(180)
 
         self._paletteSizeList = PaletteSizeList(self)
         self._paletteSizeList.itemSelectionChanged.connect(self._onPaletteSizeSelected)
@@ -104,11 +119,13 @@ class Extractor(Qt.QWidget):
         self._colorModeList = ImageColorModeList(self)
         self._colorModeList.itemSelectionChanged.connect(self._onImageColorModeSelected)
 
-        self._shapeList = ShapeList(self)
-        self._shapeList.itemSelectionChanged.connect(self._onShapeSelected)
-
         self._pixelOrderList = ImagePixelOrderList(self)
         self._pixelOrderList.itemSelectionChanged.connect(self._onImagePixelOrderSelected)
+
+        self._shapeList = ShapeList(self)
+        self._shapeList.itemSelectionChanged.connect(self._onShapeSelected)
+        self._shapeList.setMinimumWidth(180)
+        self._shapeList.setMaximumWidth(180)
 
         self._nothing = Qt.QWidget(self)
 
@@ -139,37 +156,99 @@ class Extractor(Qt.QWidget):
         self._view.addWidget(self._hexa)
         self._view.addWidget(self._pixelBrowser)
 
+        leftLayout = Qt.QVBoxLayout()
+        leftLayout.addWidget(toolbar)
+        leftLayout.addWidget(self._memView)
+
         spriteCodec = Qt.QVBoxLayout()
         spriteCodec.setContentsMargins(0, 0, 0, 0)
         spriteCodec.addWidget(self._byteCodecList)
         spriteCodec.addWidget(self._dataTypeList)
         spriteCodec.addWidget(self._paletteSizeList)
         spriteCodec.addWidget(self._colorModeList)
+        spriteCodec.addWidget(self._pixelOrderList)
         spriteCodec.addWidget(self._paletteCombo)
         spriteCodec.addWidget(self._shapeList)
-        spriteCodec.addWidget(self._pixelOrderList)
         spriteCodec.setStretchFactor(self._shapeList, 1)
         spriteCodec.addStretch(0)
 
         main = Qt.QHBoxLayout(self)
-        main.addLayout(toolbar)
-        main.addWidget(self._memView)
+        main.addLayout(leftLayout)
         main.addLayout(spriteCodec)
         main.addLayout(self._view)
         main.setStretchFactor(self._view, 1)
 
         self.setRom(None)
-        self._updateNoMemoryMapSelected()
+
+    def loadFromDialog(self):
+        filename = file_dialog.getTomlOrRomFilenameFromDialog(self)
+        if filename is None:
+            return
+        self.loadFilename(filename)
 
     def loadFilename(self, filename: str):
         with exceptionAsMessageBox():
+            if filename.endswith(".toml"):
+                self._loadTomlFile(filename)
+            else:
+                self._loadRomFile(filename)
+
+    def _loadRomFile(self, filename: str):
+        try:
+            rom = GBAFile(filename)
+        except Exception:
+            raise
+        else:
+            header = MemoryMap(
+                byte_offset=0,
+                byte_codec=ByteCodec.RAW,
+                byte_length=192,
+                data_type=DataType.GBA_ROM_HEADER,
+            )
+            other = MemoryMap(
+                byte_offset=header.byte_end,
+                byte_codec=ByteCodec.RAW,
+                byte_length=rom.size - header.byte_length,
+                data_type=DataType.UNKNOWN,
+            )
+            rom.offsets.append(header)
+            rom.offsets.append(other)
+            self.setRom(rom)
+
+    def _loadTomlFile(self, filename: str):
+        localDirectory = os.path.dirname(filename)
+        with exceptionAsMessageBox():
             try:
-                print(f"ROM filename: {filename}")
-                rom = GBAFile(filename)
-                print(f"ROM size:     {rom.size // 1000 // 1000:.2f}MB")
+                with open(filename, "rt") as f:
+                    data = rtoml.load(f)
+                try:
+                    romInfo = data["rom"]
+                    gameTitle = romInfo["game_title"]
+                    romFilename = romInfo.get("local_filename")
+                except Exception:
+                    raise RuntimeError(f"Invalid file format '{filename}'")
+
+                if romFilename is None:
+                    Qt.QMessageBox.error("Error", "No ROM file defined")
+                else:
+                    romFilename = resolve_abspath(romFilename, localDirectory)
+                    if not os.path.exists(romFilename):
+                        Qt.QMessageBox.error("Error", f"ROM file for '{gameTitle}' not found")
+                        romFilename = None
+                if romFilename is None:
+                    romFilename = file_dialog.getRomFilenameFromDialog(self)
+                    if romFilename is None:
+                        return
+
+                rom = GBAFile(romFilename)
+                for k, v in data.items():
+                    if k.startswith("memory_map:"):
+                        mem = MemoryMap.from_dict(v)
+                        rom.offsets.append(mem)
             except Exception:
                 raise
             else:
+                self._filename = filename
                 self.setRom(rom)
 
     def _extractUnknown(self):
@@ -208,20 +287,68 @@ class Extractor(Qt.QWidget):
 
     def setRom(self, rom: GBAFile | None):
         self._rom = rom
-        self._paletteList.setRom(self._rom)
+        self._paletteList.setRom(rom)
         if rom is None:
+            self._memoryMapList.setObjectList([])
             self.setWindowTitle("No ROM loaded")
         else:
+            self._memoryMapList.setObjectList(rom.offsets)
             filename = os.path.basename(rom.filename)
             self.setWindowTitle(filename)
+        self._updateNoMemoryMapSelected()
 
-    def _scanAll(self):
+    def _searchLZ77(self):
+        mem = self._memView.selectedMemoryMap()
+        if mem is None:
+            return
+
+        assert self._rom is not None
+
+        memoryMapQueue: queue.Queue[MemoryMap] = queue.Queue()
+
         Qt.QGuiApplication.setOverrideCursor(Qt.QCursor(Qt.Qt.WaitCursor))
-        try:
-            self._rom.scan_all()
-            self._updateMemoryMapList()
-        finally:
-            Qt.QGuiApplication.restoreOverrideCursor()
+        pool = Qt.QThreadPool.globalInstance()
+
+        nbFound = 0
+
+        def flushQueue():
+            nonlocal nbFound
+            try:
+                lz77mem = memoryMapQueue.get(block=False)
+                if nbFound == 0:
+                    # At the first found we remove the parent memory
+                    self._memoryMapList.removeObject(mem)
+                nbFound += 1
+                index = self._memoryMapList.indexAfterOffset(lz77mem.byte_offset)
+                self._memoryMapList.insertObject(index, lz77mem)
+            except queue.Empty:
+                pass
+
+        runnable = search_lz77.SearchLZ77Runnable(
+            rom=self._rom,
+            memoryRange=(mem.byte_offset, mem.byte_end),
+            queue=memoryMapQueue,
+        )
+
+        dialog = search_lz77.WaitForSearchDialog(self)
+        dialog.registerRunnable(runnable)
+        pool.start(runnable)
+
+        timer = Qt.QTimer(self)
+        timer.timeout.connect(flushQueue)
+        timer.start(1000)
+
+        dialog.exec()
+
+        timer.stop()
+        flushQueue()
+        Qt.QGuiApplication.restoreOverrideCursor()
+
+        Qt.QMessageBox.information(
+            self,
+            "Seatch result",
+            f"{nbFound} potential LZ77 location was found"
+        )
 
     def _showMemoryMapContextMenu(self, pos: Qt.QPoint):
         globalPos = self._memView.mapToGlobal(pos)
@@ -229,33 +356,50 @@ class Extractor(Qt.QWidget):
 
         mems = self._memView.selectedMemoryMaps()
 
+        if len(mems) == 1:
+            mem = mems[0]
+
+            showRawAsHexa = Qt.QAction(menu)
+            showRawAsHexa.setText("Show raw as hexa")
+            showRawAsHexa.triggered.connect(self._showMemoryMapRawAsHexa)
+            menu.addAction(showRawAsHexa)
+
+            saveRaw = Qt.QAction(menu)
+            saveRaw.setText("Save raw...")
+            saveRaw.triggered.connect(self._saveMemoryMapAsRaw)
+            saveRaw.setIcon(Qt.QIcon("icons:save.png"))
+            menu.addAction(saveRaw)
+
+            if mem.data_type == DataType.UNKNOWN:
+                menu.addSeparator()
+
+                searchLZ77 = Qt.QAction(menu)
+                searchLZ77.triggered.connect(self._searchLZ77)
+                searchLZ77.setText("Search for LZ77 data...")
+                searchLZ77.setIcon(Qt.QIcon("icons:search.png"))
+                menu.addAction(searchLZ77)
+
+            if mem.byte_codec not in (None, ByteCodec.RAW):
+                menu.addSeparator()
+
+                showDataAsHexa = Qt.QAction(menu)
+                showDataAsHexa.setText("Show data as hexa")
+                showDataAsHexa.triggered.connect(self._showMemoryMapDataAsHexa)
+                menu.addAction(showDataAsHexa)
+
+                saveDat = Qt.QAction(menu)
+                saveDat.setText("Save decompressed...")
+                saveDat.triggered.connect(self._saveMemoryMapAsDat)
+                saveDat.setIcon(Qt.QIcon("icons:save.png"))
+                menu.addAction(saveDat)
+
+            menu.addSeparator()
+
         remove = Qt.QAction(menu)
         remove.setText("Remove memory map")
         remove.triggered.connect(self._removeMemoryMap)
+        remove.setIcon(Qt.QIcon("icons:remove.png"))
         menu.addAction(remove)
-
-        if len(mems) == 1:
-            menu.addSeparator()
-
-            rawHexa = Qt.QAction(menu)
-            rawHexa.setText("Show raw as hexa")
-            rawHexa.triggered.connect(self._showMemoryMapRawAsHexa)
-            menu.addAction(rawHexa)
-
-            dataHexa = Qt.QAction(menu)
-            dataHexa.setText("Show data as hexa")
-            dataHexa.triggered.connect(self._showMemoryMapDataAsHexa)
-            menu.addAction(dataHexa)
-
-            saveRaw = Qt.QAction(menu)
-            saveRaw.setText("Save as raw...")
-            saveRaw.triggered.connect(self._saveMemoryMapAsRaw)
-            menu.addAction(saveRaw)
-
-            saveDat = Qt.QAction(menu)
-            saveDat.setText("Save as dat...")
-            saveDat.triggered.connect(self._saveMemoryMapAsDat)
-            menu.addAction(saveDat)
 
         menu.exec(globalPos)
 
@@ -479,29 +623,38 @@ class Extractor(Qt.QWidget):
         if nextMem is not None:
             self._memoryMapList.insertObject(index, nextMem)
 
-    def _loadInfo(self):
-        try:
-            with open(f"{self._rom.filename}.toml", "rt") as f:
-                data = rtoml.load(f)
-            self._rom.offsets.clear()
-            for k, v in data.items():
-                if k.startswith("memory_map:"):
-                    mem = MemoryMap.from_dict(v)
-                    self._rom.offsets.append(mem)
-        except Exception:
-            # FIXME: Display it in a dialog
-            logging.error("Error while loading file", exc_info=True)
-        self._updateMemoryMapList()
+    def save(self):
+        """Save to the loadined file"""
+        self._saveFilename(self._filename)
 
-    def _updateMemoryMapList(self):
-        self._memoryMapList.setObjectList(self._rom.offsets)
+    def saveAs(self):
+        """Save as a new file from a file dialog."""
+        self._saveFilename(None)
 
-    def _saveInfo(self):
+    def _saveFilename(self, filename: str | None):
+        if self._rom is None:
+            raise ValueError()
+
+        if filename is None:
+            filename = file_dialog.getSaveTomlFilenameFromDialog(self)
+            if filename is None:
+                return
+
+        assert filename is not None
+
         try:
+            rom = {}
+            rom["game_title"] = self._rom.game_title
+            rom["sha256"] = self._rom.sha256
+            localDir = os.path.dirname(filename)
+            relativePath = os.path.relpath(self._rom.filename, start=localDir)
+            rom["local_filename"] = relativePath
+
             data = {}
+            data["rom"] = rom
             for mem in self._rom.offsets:
                 data[f"memory_map:{mem.byte_offset:08X}"] = mem.to_dict()
-            with open(f"{self._rom.filename}.toml", "wt") as f:
+            with open(filename, "wt") as f:
                 rtoml.dump(data, f)
         except Exception:
             # FIXME: Display it in a dialog

@@ -62,7 +62,7 @@ class PaletteFilterProxyModel(Qt.QSortFilterProxyModel):
         Qt.QSortFilterProxyModel.__init__(self, parent=parent)
         self._rom: GBAFile | None = None
 
-    def setRom(self, rom: GBAFile):
+    def setRom(self, rom: GBAFile | None):
         self._rom = rom
 
     def objectIndex(self, obj: typing.Any) -> Qt.QModelIndex:

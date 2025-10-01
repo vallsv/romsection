@@ -7,6 +7,7 @@ import time
 import numpy
 import typing
 import dataclasses
+import hashlib
 
 from .lz77 import decompress as decompress_lz77
 from .lz77 import dryrun as dryrun_lz77
@@ -44,6 +45,21 @@ class GBAFile:
         return [m for m in self.offsets if m.data_type == DataType.PALETTE]
 
     @property
+    def game_title(self):
+        f = self._f
+        f.seek(0xA0, os.SEEK_SET)
+        data = f.read(12)
+        title = data.rstrip(b"\x00").decode()
+        return title
+
+    @property
+    def sha256(self) -> str:
+        f = self._f
+        f.seek(0, os.SEEK_SET)
+        m = hashlib.file_digest(f, "sha256")
+        return m.hexdigest()
+
+    @property
     def filename(self):
         return self._filename
 
@@ -51,23 +67,38 @@ class GBAFile:
     def size(self):
         return self._size
 
-    def scan_all(self, skip_valid_blocks=False):
-        self.offsets.clear()
+    def search_for_lz77(
+        self,
+        offset_from: int,
+        offset_to: int,
+        must_stop: typing.Callable[[], bool],
+        on_found: typing.Callable[[MemoryMap], None],
+        on_progress: typing.Callable[[int], None] | None = None,
+        skip_valid_blocks=False,
+    ):
+        """
+        Scan a range of the memory to find LZ77 valid compressed memory.
+
+        Raises:
+            StopIteration: If a stop was requested
+        """
         f = self._f
-        f.seek(0, os.SEEK_SET)
-        offset = 0
+        offset = offset_from
+        f.seek(offset, os.SEEK_SET)
         stream = f
-        while offset < self._size:
+        while offset < offset_to:
+            if must_stop():
+                raise StopIteration
             try:
                 size = dryrun_lz77(
                     stream,
                     min_length=16,
                     max_length=600*400*2,
+                    must_stop=must_stop
                 )
             except ValueError:
                 size = None
             except RuntimeError:
-                logging.warning(f"{offset:08X}h skipped")
                 size = None
             else:
                 mem = MemoryMap(
@@ -75,9 +106,9 @@ class GBAFile:
                     byte_length=stream.tell() - offset,
                     byte_payload=size,
                     byte_codec=ByteCodec.LZ77,
-                    data_type=DataType.IMAGE,
+                    data_type=DataType.UNKNOWN,
                 )
-                self.offsets.append(mem)
+                on_found(mem)
             if not skip_valid_blocks:
                 offset += 1
                 stream.seek(offset, os.SEEK_SET)
@@ -87,6 +118,8 @@ class GBAFile:
                     stream.seek(offset, os.SEEK_SET)
                 else:
                     offset += size
+            if on_progress is not None:
+                on_progress(offset)
 
     def extract_raw(self, mem: MemoryMap) -> bytes:
         f = self._f
