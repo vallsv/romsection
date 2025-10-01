@@ -73,6 +73,7 @@ class GBAFile:
         offset_to: int,
         must_stop: typing.Callable[[], bool],
         on_found: typing.Callable[[MemoryMap], None],
+        on_progress: typing.Callable[[int], None] | None = None,
         skip_valid_blocks=False,
     ):
         """
@@ -117,6 +118,8 @@ class GBAFile:
                     stream.seek(offset, os.SEEK_SET)
                 else:
                     offset += size
+            if on_progress is not None:
+                on_progress(offset)
 
     def extract_raw(self, mem: MemoryMap) -> bytes:
         f = self._f
