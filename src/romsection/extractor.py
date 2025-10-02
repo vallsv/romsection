@@ -28,6 +28,7 @@ from .widgets.hexa_view import HexaView
 from .widgets.palette_size_list import PaletteSizeList
 from .widgets.pixel_browser import PixelBrowser
 from .widgets.tile_set_browser import TileSetBrowser
+from .widgets.sound_browser import SoundBrowser
 from .gba_file import GBAFile, ByteCodec, MemoryMap, ImageColorMode, ImagePixelOrder, DataType
 from .qt_utils import blockSignals, exceptionAsMessageBox
 from .path_utils import resolve_abspath
@@ -147,6 +148,8 @@ class Extractor(Qt.QWidget):
         self._pixelBrowser.setContextMenuPolicy(Qt.Qt.CustomContextMenu)
         self._pixelBrowser.customContextMenuRequested.connect(self._showPixelBrowserContextMenu)
 
+        self._soundBrowser = SoundBrowser(self)
+
         self._view = Qt.QStackedLayout()
         self._view.addWidget(self._nothing)
         self._view.addWidget(self._image)
@@ -155,6 +158,7 @@ class Extractor(Qt.QWidget):
         self._view.addWidget(self._header)
         self._view.addWidget(self._hexa)
         self._view.addWidget(self._pixelBrowser)
+        self._view.addWidget(self._soundBrowser)
 
         leftLayout = Qt.QVBoxLayout()
         leftLayout.addWidget(toolbar)
@@ -370,6 +374,12 @@ class Extractor(Qt.QWidget):
             saveRaw.setIcon(Qt.QIcon("icons:save.png"))
             menu.addAction(saveRaw)
 
+            showDataAsWave = Qt.QAction(menu)
+            showDataAsWave.setText("Show data as wave")
+            showDataAsWave.triggered.connect(self._showMemoryMapDataAsSound)
+            showDataAsWave.setIcon(Qt.QIcon("icons:empty.png"))
+            menu.addAction(showDataAsWave)
+
             if mem.data_type == DataType.UNKNOWN:
                 menu.addSeparator()
 
@@ -434,6 +444,20 @@ class Extractor(Qt.QWidget):
         address = mem.byte_offset
         self._hexa.setData(data, address=address)
         self._view.setCurrentWidget(self._hexa)
+
+    def _showMemoryMapDataAsSound(self):
+        mem = self._memView.selectedMemoryMap()
+        if mem is None:
+            return
+        data = self._rom.extract_data(mem)
+        memory = io.BytesIO(data.tobytes())
+        if mem.byte_codec in (None, ByteCodec.RAW):
+            address = mem.byte_offset
+        else:
+            # Absolute ROM location have no meaning here
+            address = 0
+        self._soundBrowser.setMemory(memory, address=address)
+        self._view.setCurrentWidget(self._soundBrowser)
 
     def _showMemoryMapDataAsHexa(self):
         mem = self._memView.selectedMemoryMap()
