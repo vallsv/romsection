@@ -4,6 +4,7 @@ import numpy
 from PyQt5 import Qt
 
 from .sound_wave_view import SoundWaveView
+from .sample_codec_combo_box import SampleCodecComboBox
 from .combo_box import ComboBox
 
 
@@ -44,14 +45,12 @@ class SoundBrowser(Qt.QWidget):
         self.__samplePerPixels.setValue(self.__widget.nbSamplePerPixels())
         self.__toolbar.addWidget(self.__samplePerPixels)
 
-        self.__sampleType = ComboBox(self.__toolbar)
-        self.__sampleType.addItem("Unsigned 1 byte", (1, False))
-        self.__sampleType.addItem("Unsigned 2 byte", (2, False))
-        self.__sampleType.addItem("Unsigned 4 byte", (4, False))
-        self.__sampleType.addItem("Signed 1 byte", (1, True))
-        self.__sampleType.addItem("Signed 2 byte", (2, True))
-        self.__sampleType.addItem("Signed 4 byte", (4, True))
-        self.__toolbar.addWidget(self.__sampleType)
+        self.__sampleCodec = SampleCodecComboBox(self.__toolbar)
+        self.__toolbar.addWidget(self.__sampleCodec)
+
+        playButton = Qt.QPushButton(self.__toolbar)
+        playButton.clicked.connect(waveView.playSelection)
+        self.__toolbar.addWidget(playButton)
 
         layout.setContentsMargins(0, 0, 0, 0)
 
@@ -62,7 +61,7 @@ class SoundBrowser(Qt.QWidget):
 
         self.__samplePerPixels.valueChanged.connect(waveView.setNbSamplePerPixels)
         self.__scroll.valueChanged.connect(waveView.setPosition)
-        self.__sampleType.currentIndexChanged.connect(self.__onSampleTypeChanged)
+        self.__sampleCodec.valueChanged.connect(waveView.setSampleCodec)
 
     def __onSampleTypeChanged(self, index: int):
         size, signed = self.__sampleType.itemData(index)
