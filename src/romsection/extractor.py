@@ -77,19 +77,29 @@ class Extractor(Qt.QWidget):
         saveAsAction.setIcon(Qt.QIcon("icons:save-as.png"))
         toolbar.addAction(saveAsAction)
 
-        toolbar.addSeparator()
+        spacer = Qt.QWidget(toolbar)
+        spacer.setSizePolicy(Qt.QSizePolicy.Expanding, Qt.QSizePolicy.Expanding)
+        toolbar.addWidget(spacer)
+
+        toolButton = Qt.QToolButton(self)
+        toolButton.setPopupMode(Qt.QToolButton.InstantPopup)
+        toolButton.setIcon(Qt.QIcon("icons:tool.png"))
+        toolbar.addWidget(toolButton)
+
+        toolMenu = Qt.QMenu(toolbar)
+        toolButton.setMenu(toolMenu)
 
         extractUnknown = Qt.QAction(self)
         extractUnknown.triggered.connect(self._extractUnknown)
         extractUnknown.setText("Create sections for unmapped memory")
         extractUnknown.setIcon(Qt.QIcon("icons:unknown.png"))
-        toolbar.addAction(extractUnknown)
+        toolMenu.addAction(extractUnknown)
 
         removeUnknown = Qt.QAction(self)
         removeUnknown.triggered.connect(self._removeUnknown)
         removeUnknown.setText("Remove unknown mapped sections")
         removeUnknown.setIcon(Qt.QIcon("icons:unknown-remove.png"))
-        toolbar.addAction(removeUnknown)
+        toolMenu.addAction(removeUnknown)
 
         self._memView = MemoryMapListView(self)
         self._memView.setModel(self._memoryMapList)
