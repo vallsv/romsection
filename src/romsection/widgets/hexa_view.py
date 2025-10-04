@@ -1,3 +1,4 @@
+import io
 from PyQt5 import Qt
 
 
@@ -164,8 +165,29 @@ class HexaView(Qt.QTableView):
         model = HexaTableModel(self)
         self.setModel(model)
 
+    def setPosition(self, pos: int):
+        line = pos // 16
+        model = self.model()
+        index = model.index(line, 0)
+        self.scrollTo(index)
+
+    def setMemory(self, memory: io.IOBase | None, address: int=0):
+        """
+        Set the binary data.
+        """
+        if memory is not None:
+            # FIXME: Really handle `io`, actually we only support `BytesIO`.
+            data = memory.getvalue()
+        else:
+            data = b""
+        self.model().setBytes(data, address=address)
+        self.__fixHeader()
+
     def setData(self, data: bytes | None, address: int=0):
-        """Set the binary data."""
+        """Set the binary data.
+
+        FIXME: Deprecated
+        """
         self.model().setBytes(data, address=address)
         self.__fixHeader()
 
