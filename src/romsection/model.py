@@ -22,6 +22,12 @@ class DataType(enum.Enum):
     The properties of the IMAGE are used, but are applied to a single tile.
     """
 
+    SAMPLE = enum.auto()
+    """Audio samples"""
+
+    MUSIC = enum.auto()
+    """Music composition"""
+
     UNKNOWN = enum.auto()
     """Memory map which is not yet identified."""
 

@@ -43,6 +43,18 @@ class DataTypeList(Qt.QListWidget):
         self.addItem(item)
 
         item = Qt.QListWidgetItem()
+        item.setText(f"Sample")
+        item.setData(Qt.Qt.UserRole, DataType.SAMPLE)
+        item.setIcon(Qt.QIcon("icons:sample.png"))
+        self.addItem(item)
+
+        item = Qt.QListWidgetItem()
+        item.setText(f"Music")
+        item.setData(Qt.Qt.UserRole, DataType.MUSIC)
+        item.setIcon(Qt.QIcon("icons:music.png"))
+        self.addItem(item)
+
+        item = Qt.QListWidgetItem()
         item.setText(f"Unknown")
         item.setData(Qt.Qt.UserRole, DataType.UNKNOWN)
         item.setIcon(Qt.QIcon("icons:unknown.png"))

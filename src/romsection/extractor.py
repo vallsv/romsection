@@ -969,6 +969,10 @@ class Extractor(Qt.QWidget):
                 data = self._rom.extract_raw(mem)
                 self._hexa.setData(data, address=mem.byte_offset)
                 self._view.setCurrentWidget(self._hexa)
+            elif mem.data_type == DataType.SAMPLE:
+                self._showMemoryMapDataAsSound()
+            elif mem.data_type == DataType.MUSIC:
+                self._showMemoryMapDataAsHexa()
             elif mem.data_type == DataType.UNKNOWN:
                 data = self._rom.extract_data(mem)
                 memory = io.BytesIO(data.tobytes())
