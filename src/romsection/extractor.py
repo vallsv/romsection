@@ -311,6 +311,9 @@ class Extractor(Qt.QWidget):
             if mem.data_type == DataType.UNKNOWN:
                 self._memoryMapList.removeObject(mem)
 
+    def rom(self) -> GBAFile | None:
+        return self._rom
+
     def setRom(self, rom: GBAFile | None):
         self._rom = rom
         self._paletteList.setRom(rom)
@@ -322,6 +325,9 @@ class Extractor(Qt.QWidget):
             filename = os.path.basename(rom.filename)
             self.setWindowTitle(filename)
         self._updateNoMemoryMapSelected()
+
+    def memoryMapList(self) -> MemoryMapListModel:
+        return self._memoryMapList
 
     def _searchLZ77(self):
         mem = self._memView.selectedMemoryMap()
