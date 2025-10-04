@@ -146,15 +146,6 @@ class GBAFile:
             offset += 1
         return result
 
-    def search_for_sappy(self) -> list[int]:
-        """
-        Search for sappy empty bank.
-
-        See https://www.romhacking.net/documents/462/
-        """
-        unused_instrument = b"\x01\x3c\x00\x00\x02\x00\x00\x00\x00\x00\x0f\x00"
-        return self.search_for_bytes(0, self._size, unused_instrument)
-
     def extract_raw(self, mem: MemoryMap) -> bytes:
         f = self._f
         f.seek(mem.byte_offset, os.SEEK_SET)

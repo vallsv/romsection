@@ -34,6 +34,7 @@ from .qt_utils import blockSignals, exceptionAsMessageBox
 from .path_utils import resolve_abspath
 from .behaviors import file_dialog
 from .behaviors import search_lz77
+from .behaviors import sappy_content
 
 
 def uniqueValueElseNone(data: list[typing.Any]):
@@ -100,6 +101,17 @@ class Extractor(Qt.QWidget):
         removeUnknown.setText("Remove unknown mapped sections")
         removeUnknown.setIcon(Qt.QIcon("icons:unknown-remove.png"))
         toolMenu.addAction(removeUnknown)
+
+        toolMenu.addSeparator()
+
+        self.__searchSappyContent = sappy_content.SearchSappyTag()
+        self.__searchSappyContent.setContext(self)
+
+        action = Qt.QAction(self)
+        action.triggered.connect(self.__searchSappyContent.run)
+        action.setText("Search for sappy content")
+        action.setIcon(Qt.QIcon("icons:music.png"))
+        toolMenu.addAction(action)
 
         self._memView = MemoryMapListView(self)
         self._memView.setModel(self._memoryMapList)
