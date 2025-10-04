@@ -91,25 +91,31 @@ class Extractor(Qt.QWidget):
         toolMenu = Qt.QMenu(toolbar)
         toolButton.setMenu(toolMenu)
 
-        extractUnknown = Qt.QAction(self)
-        extractUnknown.triggered.connect(self._extractUnknown)
-        extractUnknown.setText("Create sections for unmapped memory")
-        extractUnknown.setIcon(Qt.QIcon("icons:unknown.png"))
-        toolMenu.addAction(extractUnknown)
-
-        removeUnknown = Qt.QAction(self)
-        removeUnknown.triggered.connect(self._removeUnknown)
-        removeUnknown.setText("Remove unknown mapped sections")
-        removeUnknown.setIcon(Qt.QIcon("icons:unknown-remove.png"))
-        toolMenu.addAction(removeUnknown)
-
-        toolMenu.addSeparator()
-
         self.__searchSappyContent = sappy_content.SearchSappyTag()
         self.__searchSappyContent.setContext(self)
 
+        self.__createUncovered = unknown_content.CreateUncoveredMemory()
+        self.__createUncovered.setContext(self)
+
         self.__replaceUnknownByPadding = unknown_content.ReplaceUnknownByPadding()
         self.__replaceUnknownByPadding.setContext(self)
+
+        self.__removeUnknown = unknown_content.RemoveUnknown()
+        self.__removeUnknown.setContext(self)
+
+        action = Qt.QAction(self)
+        action.triggered.connect(self.__createUncovered.run)
+        action.setText("Create sections for unmapped memory")
+        action.setIcon(Qt.QIcon("icons:unknown.png"))
+        toolMenu.addAction(action)
+
+        action = Qt.QAction(self)
+        action.triggered.connect(self.__removeUnknown.run)
+        action.setText("Remove unknown mapped sections")
+        action.setIcon(Qt.QIcon("icons:unknown-remove.png"))
+        toolMenu.addAction(action)
+
+        toolMenu.addSeparator()
 
         action = Qt.QAction(self)
         action.triggered.connect(self.__searchSappyContent.run)
@@ -286,40 +292,6 @@ class Extractor(Qt.QWidget):
             else:
                 self._filename = filename
                 self.setRom(rom)
-
-    def _extractUnknown(self):
-        offsets = list(self._rom.offsets)
-        # offsets = sorted(offsets, keys=lambda v: v.byte_offset)
-        mem_end = MemoryMap(
-            byte_offset=self._rom.size,
-            byte_length=1,
-            data_type=DataType.UNKNOWN,
-        )
-        offsets.append(mem_end)
-
-        current_offset = 0
-        index = 0
-        for offset in offsets:
-            if offset.byte_offset < current_offset:
-                index += 1
-                continue
-            if current_offset != offset.byte_offset:
-                length = offset.byte_offset - current_offset
-                mem = MemoryMap(
-                    byte_offset=current_offset,
-                    byte_length=length,
-                    byte_codec=ByteCodec.RAW,
-                    data_type=DataType.UNKNOWN,
-                )
-                self._memoryMapList.insertObject(index, mem)
-                index += 1
-            index += 1
-            current_offset = offset.byte_offset + (offset.byte_length or 1)
-
-    def _removeUnknown(self):
-        for mem in reversed(self._rom.offsets):
-            if mem.data_type == DataType.UNKNOWN:
-                self._memoryMapList.removeObject(mem)
 
     def rom(self) -> GBAFile | None:
         return self._rom
