@@ -14,6 +14,10 @@ class ObjectListModel(Qt.QAbstractItemModel):
         super().__init__(parent=parent)
         self.__items: list[typing.Any] = []
 
+    def __iter__(self):
+        for i in range(self.rowCount()):
+            yield self.__items[i]
+
     def setObjectList(self, items: list[typing.Any]):
         self.beginResetModel()
         self.__items = items
