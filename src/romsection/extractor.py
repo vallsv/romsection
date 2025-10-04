@@ -35,6 +35,7 @@ from .path_utils import resolve_abspath
 from .behaviors import file_dialog
 from .behaviors import search_lz77
 from .behaviors import sappy_content
+from .behaviors import unknown_content
 
 
 def uniqueValueElseNone(data: list[typing.Any]):
@@ -107,10 +108,19 @@ class Extractor(Qt.QWidget):
         self.__searchSappyContent = sappy_content.SearchSappyTag()
         self.__searchSappyContent.setContext(self)
 
+        self.__replaceUnknownByPadding = unknown_content.ReplaceUnknownByPadding()
+        self.__replaceUnknownByPadding.setContext(self)
+
         action = Qt.QAction(self)
         action.triggered.connect(self.__searchSappyContent.run)
         action.setText("Search for sappy content")
         action.setIcon(Qt.QIcon("icons:music.png"))
+        toolMenu.addAction(action)
+
+        action = Qt.QAction(self)
+        action.triggered.connect(self.__replaceUnknownByPadding.run)
+        action.setText("Replace matching unknown by padding")
+        action.setIcon(Qt.QIcon("icons:padding.png"))
         toolMenu.addAction(action)
 
         self._memView = MemoryMapListView(self)
