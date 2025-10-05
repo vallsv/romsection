@@ -61,6 +61,16 @@ class SampleBrowserWave(Qt.QWidget):
         size = (end - bytePos) - (end - bytePos) % bytePerPixels
         return size
 
+    def _getAllData(self) -> numpy.ndarray:
+        parent = self.parent()
+        size = parent.memoryLength()
+        f = parent.memory()
+        f.seek(0, os.SEEK_SET)
+        data = f.read(size)
+        dtype = self._getDtype()
+        array = numpy.frombuffer(data, dtype=dtype)
+        return array
+
     def _getVisibleData(self) -> numpy.ndarray:
         parent = self.parent()
         size = self._getPageSize()
@@ -155,12 +165,18 @@ class SampleBrowserWidget(Qt.QFrame):
         self._updateScroll()
         self.__wave.update()
 
+    def play(self):
+        array = self.__wave._getAllData()
+        self._play(array)
+
     def playVisible(self):
+        array = self.__wave._getVisibleData()
+        self._play(array)
+
+    def _play(self, array: numpy.ndarray):
         if self.__sink is not None:
             return
         self.playbackChanged.emit(True)
-
-        array = self.__wave._getVisibleData()
         data = translate_range_to_uint8(array).tobytes()
         self.__bytearray = Qt.QByteArray(data)
         buffer = Qt.QBuffer(self.__bytearray, self)

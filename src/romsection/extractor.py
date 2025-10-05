@@ -31,6 +31,7 @@ from .widgets.pixel_browser import PixelBrowser
 from .widgets.tile_set_browser import TileSetBrowser
 from .widgets.sample_browser import SampleBrowser
 from .widgets.music_browser import MusicBrowser
+from .widgets.sample_view import SampleView
 from .gba_file import GBAFile, ByteCodec, MemoryMap, ImageColorMode, ImagePixelOrder, DataType
 from .qt_utils import blockSignals, exceptionAsMessageBox
 from .path_utils import resolve_abspath
@@ -197,6 +198,7 @@ class Extractor(Qt.QWidget):
 
         self._sampleBrowser = SampleBrowser(self)
         self._musicBrowser = MusicBrowser(self)
+        self._sampleView = SampleView(self)
 
         self._view = Qt.QStackedLayout()
         self._view.addWidget(self._nothing)
@@ -208,6 +210,7 @@ class Extractor(Qt.QWidget):
         self._view.addWidget(self._pixelBrowser)
         self._view.addWidget(self._sampleBrowser)
         self._view.addWidget(self._musicBrowser)
+        self._view.addWidget(self._sampleView)
 
         leftLayout = Qt.QVBoxLayout()
         leftLayout.addWidget(toolbar)
@@ -311,6 +314,7 @@ class Extractor(Qt.QWidget):
     def setRom(self, rom: GBAFile | None):
         self._rom = rom
         self._paletteList.setRom(rom)
+        self._sampleView.setRom(rom)
         if rom is None:
             self._memoryMapList.setObjectList([])
             self.setWindowTitle("No ROM loaded")
@@ -398,7 +402,7 @@ class Extractor(Qt.QWidget):
 
             showDataAsWave = Qt.QAction(menu)
             showDataAsWave.setText("Browse data for sample")
-            showDataAsWave.triggered.connect(self._showMemoryMapDataAsSound)
+            showDataAsWave.triggered.connect(self._browseMemoryMapDataForSample)
             showDataAsWave.setIcon(Qt.QIcon("icons:sample.png"))
             menu.addAction(showDataAsWave)
 
@@ -473,7 +477,7 @@ class Extractor(Qt.QWidget):
         self._hexa.setData(data, address=address)
         self._view.setCurrentWidget(self._hexa)
 
-    def _showMemoryMapDataAsSound(self):
+    def _browseMemoryMapDataForSample(self):
         mem = self._memView.selectedMemoryMap()
         if mem is None:
             return
@@ -1026,7 +1030,8 @@ class Extractor(Qt.QWidget):
                 self._hexa.setData(data, address=mem.byte_offset)
                 self._view.setCurrentWidget(self._hexa)
             elif mem.data_type == DataType.SAMPLE:
-                self._showMemoryMapDataAsSound()
+                self._sampleView.setMemoryMap(mem)
+                self._view.setCurrentWidget(self._sampleView)
             elif mem.data_type == DataType.MUSIC:
                 self._browseMemoryMapDataForMusic()
             elif mem.data_type == DataType.UNKNOWN:
