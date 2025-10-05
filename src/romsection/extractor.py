@@ -20,6 +20,7 @@ from .widgets.image_pixel_order_list import ImagePixelOrderList
 from .widgets.byte_codec_list import ByteCodecList
 from .widgets.data_type_list import DataTypeList
 from .widgets.palette_filter_proxy_model import PaletteFilterProxyModel
+from .widgets.sample_codec_list import SampleCodecList
 from .widgets.combo_box import ComboBox
 from .widgets.palette_combo_box import PaletteComboBox
 from .widgets.gba_rom_header_view import GbaRomHeaderView
@@ -169,6 +170,11 @@ class Extractor(Qt.QWidget):
         self._shapeList.setMinimumWidth(180)
         self._shapeList.setMaximumWidth(180)
 
+        self._sampleCodecList = SampleCodecList(self)
+        self._sampleCodecList.valueChanged.connect(self._onSampleCodecSelected)
+        self._sampleCodecList.setMinimumWidth(180)
+        self._sampleCodecList.setMaximumWidth(180)
+
         self._nothing = Qt.QWidget(self)
 
         self._error = Qt.QTextEdit(self)
@@ -216,6 +222,7 @@ class Extractor(Qt.QWidget):
         spriteCodec.addWidget(self._pixelOrderList)
         spriteCodec.addWidget(self._paletteCombo)
         spriteCodec.addWidget(self._shapeList)
+        spriteCodec.addWidget(self._sampleCodecList)
         spriteCodec.setStretchFactor(self._shapeList, 1)
         spriteCodec.addStretch(0)
 
@@ -747,6 +754,7 @@ class Extractor(Qt.QWidget):
         self._shapeList.setEnabled(False)
         self._pixelOrderList.setEnabled(False)
         self._paletteSizeList.setEnabled(False)
+        self._sampleCodecList.setEnabled(False)
         with blockSignals(self._byteCodecList):
             self._byteCodecList.selectByteCodec(None)
         with blockSignals(self._dataTypeList):
@@ -761,6 +769,8 @@ class Extractor(Qt.QWidget):
             self._pixelOrderList.selectImagePixelOrder(None)
         with blockSignals(self._paletteSizeList):
             self._paletteSizeList.selectPaletteSize(None)
+        with blockSignals(self._sampleCodecList):
+            self._sampleCodecList.selectValue(None)
         self._view.setCurrentWidget(self._nothing)
 
     def _updateMultipleMemoryMapSelected(self, mems: list[MemoryMap]):
@@ -774,6 +784,7 @@ class Extractor(Qt.QWidget):
         self._paletteCombo.setEnabled(True)
         self._pixelOrderList.setEnabled(True)
         self._paletteSizeList.setEnabled(True)
+        self._sampleCodecList.setEnabled(True)
 
         with blockSignals(self._byteCodecList):
             reducedByteCodec = uniqueValueElseNone([m.byte_codec for m in mems])
@@ -800,6 +811,9 @@ class Extractor(Qt.QWidget):
         with blockSignals(self._paletteSizeList):
             reducedPaletteSize = uniqueValueElseNone([m.palette_size for m in mems])
             self._paletteSizeList.selectPaletteSize(reducedPaletteSize)
+        with blockSignals(self._sampleCodecList):
+            sampleCodec = uniqueValueElseNone([m.sample_codec for m in mems])
+            self._sampleCodecList.selectValue(sampleCodec)
 
         self._updateWidgets()
         self._updateShapes()
@@ -814,6 +828,7 @@ class Extractor(Qt.QWidget):
         self._shapeList.setEnabled(True)
         self._pixelOrderList.setEnabled(True)
         self._paletteSizeList.setEnabled(True)
+        self._sampleCodecList.setEnabled(True)
 
         if mem.byte_payload is not None:
             if mem.image_color_mode is None and mem.image_shape is None and mem.image_pixel_order is None:
@@ -851,6 +866,9 @@ class Extractor(Qt.QWidget):
 
         with blockSignals(self._paletteSizeList):
             self._paletteSizeList.selectPaletteSize(mem.palette_size)
+
+        with blockSignals(self._sampleCodecList):
+            self._sampleCodecList.selectValue(mem.sample_codec)
 
         self._updateWidgets()
         self._updateShapes()
@@ -899,6 +917,7 @@ class Extractor(Qt.QWidget):
         self._paletteCombo.setVisible(dataType in (DataType.IMAGE,DataType.TILE_SET))
         self._shapeList.setVisible(dataType == DataType.IMAGE)
         self._pixelOrderList.setVisible(dataType == DataType.IMAGE)
+        self._sampleCodecList.setVisible(dataType == DataType.SAMPLE)
 
     def _updateShapes(self):
         mems = self._memView.selectedMemoryMaps()
@@ -974,6 +993,12 @@ class Extractor(Qt.QWidget):
         pixelOrder = self._pixelOrderList.selectedImagePixelOrder()
         for mem in self._memView.selectedMemoryMaps():
             mem.image_pixel_order = pixelOrder
+        self._updateImage()
+
+    def _onSampleCodecSelected(self):
+        sampleCodec = self._sampleCodecList.selectedValue()
+        for mem in self._memView.selectedMemoryMaps():
+            mem.sample_codec = sampleCodec
         self._updateImage()
 
     def _onPaletteSelected(self):

@@ -75,6 +75,18 @@ class ImagePixelOrder(enum.Enum):
     TILED_8X8 = enum.auto()
 
 
+class SampleCodec(enum.Enum):
+    RAW_INT8 = enum.auto()
+    """Sample raw data encoded in int8."""
+
+    SAPPY = enum.auto()
+    """
+    Sappy container wrapping a sample.
+
+    See https://www.romhacking.net/documents/462/
+    """
+
+
 @dataclasses.dataclass
 class MemoryMap:
     byte_offset: int
@@ -133,6 +145,11 @@ class MemoryMap:
     an indexed color mode.
     """
 
+    sample_codec: SampleCodec | None = None
+    """
+    The way a sample is encoded in the ROM.
+    """
+
     comment: str | None = None
     """
     Human comment
@@ -164,6 +181,8 @@ class MemoryMap:
             description["image_palette_offset"] = self.image_palette_offset
         if self.palette_size is not None:
             description["palette_size"] = self.palette_size
+        if self.sample_codec is not None:
+            description["sample_codec"] = self.sample_codec.name
         if self.comment is not None:
             description["comment"] = self.comment
         return description
@@ -190,6 +209,9 @@ class MemoryMap:
         if image_pixel_order is not None:
             image_pixel_order = ImagePixelOrder[image_pixel_order]
         palette_size = description.get("palette_size")
+        sample_codec = description.get("sample_codec")
+        if sample_codec is not None:
+            sample_codec = SampleCodec[sample_codec]
         comment = description.get("comment")
         return MemoryMap(
             byte_offset=byte_offset,
@@ -202,5 +224,6 @@ class MemoryMap:
             image_pixel_order=image_pixel_order,
             image_palette_offset=image_palette_offset,
             palette_size=palette_size,
+            sample_codec=sample_codec,
             comment=comment,
         )
