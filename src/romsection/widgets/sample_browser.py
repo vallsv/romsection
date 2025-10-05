@@ -3,13 +3,13 @@ import io
 import numpy
 from PyQt5 import Qt
 
-from .sound_wave_view import SoundWaveView
+from .sample_browser_widget import SampleBrowserWidget
 from .sample_codec_combo_box import SampleCodecComboBox
 from .combo_box import ComboBox
 from .hexa_view import HexaView
 
 
-class SoundBrowser(Qt.QWidget):
+class SampleBrowser(Qt.QWidget):
     def __init__(self, parent: Qt.QWidget | None = None):
         Qt.QWidget.__init__(self, parent=parent)
         self.setSizePolicy(Qt.QSizePolicy.Expanding, Qt.QSizePolicy.Expanding)
@@ -27,8 +27,8 @@ class SoundBrowser(Qt.QWidget):
         frame.setFrameShadow(Qt.QFrame.Sunken)
         frame.setFrameShape(Qt.QFrame.StyledPanel)
 
-        waveView = SoundWaveView(frame)
-        self.__widget = waveView
+        waveView = SampleBrowserWidget(frame)
+        self.__wave = waveView
         self.__scroll = Qt.QScrollBar(frame)
         self.__scroll.setTracking(True)
         self.__scroll.setOrientation(Qt.Qt.Horizontal)
@@ -51,22 +51,23 @@ class SoundBrowser(Qt.QWidget):
         frame.setLayout(frameLayout)
         frameLayout.setSpacing(0)
         frameLayout.setContentsMargins(0, 0, 0, 0)
-        frameLayout.addWidget(self.__widget)
+        frameLayout.addWidget(self.__wave)
         frameLayout.addWidget(self.__scroll)
 
-        frameLayout.setStretchFactor(self.__widget, 1)
+        frameLayout.setStretchFactor(self.__wave, 1)
 
         self.__samplePerPixels = Qt.QSpinBox(self.__toolbar)
         self.__samplePerPixels.setRange(1, 128)
-        self.__samplePerPixels.setValue(self.__widget.nbSamplePerPixels())
+        self.__samplePerPixels.setValue(self.__wave.nbSamplePerPixels())
         self.__toolbar.addWidget(self.__samplePerPixels)
 
         self.__sampleCodec = SampleCodecComboBox(self.__toolbar)
         self.__toolbar.addWidget(self.__sampleCodec)
 
-        playButton = Qt.QPushButton(self.__toolbar)
-        playButton.clicked.connect(waveView.playSelection)
-        self.__toolbar.addWidget(playButton)
+        self.__playButton = Qt.QPushButton(self.__toolbar)
+        self.__playButton.clicked.connect(self._playback)
+        self.__playButton.setIcon(Qt.QIcon("icons:play.png"))
+        self.__toolbar.addWidget(self.__playButton)
 
         layout.setContentsMargins(0, 0, 0, 0)
 
@@ -79,11 +80,24 @@ class SoundBrowser(Qt.QWidget):
         self.__samplePerPixels.valueChanged.connect(waveView.setNbSamplePerPixels)
         self.__scroll.valueChanged.connect(self.setPosition)
         self.__sampleCodec.valueChanged.connect(waveView.setSampleCodec)
+        self.__wave.playbackChanged.connect(self._onPlaybackChanged)
+
+    def _playback(self):
+        if self.__wave.isPlaying():
+            self.__wave.stop()
+        else:
+            self.__wave.playSelection()
+
+    def _onPlaybackChanged(self, playing: bool):
+        if playing:
+            self.__playButton.setIcon(Qt.QIcon("icons:stop.png"))
+        else:
+            self.__playButton.setIcon(Qt.QIcon("icons:play.png"))
 
     def __onSampleTypeChanged(self, index: int):
         size, signed = self.__sampleType.itemData(index)
-        self.__widget.setSampleSize(size)
-        self.__widget.setSampleSigned(signed)
+        self.__wave.setSampleSize(size)
+        self.__wave.setSampleSigned(signed)
 
     def keyPressEvent(self, event: Qt.QKeyEvent):
         if event.key() == Qt.Qt.Key_Left:
@@ -96,40 +110,40 @@ class SoundBrowser(Qt.QWidget):
             self.moveToNextPage()
 
     def setPosition(self, pos: int):
-        self.__widget.setPosition(pos)
+        self.__wave.setPosition(pos)
         self.__hexa.setPosition(pos)
 
     def moveToPreviousByte(self):
-        pos = self.__widget.position() - 1
+        pos = self.__wave.position() - 1
         pos = max(pos, 0)
         self.setPosition(pos)
 
     def moveToNextByte(self):
-        pos = self.__widget.position() + 1
-        pos = min(pos, self.__widget.memoryLength())
+        pos = self.__wave.position() + 1
+        pos = min(pos, self.__wave.memoryLength())
         self.setPosition(pos)
 
     def moveToPreviousPage(self):
         # FIXME: Have to be improved
-        pos = self.__widget.position() - self.__widget.width()
+        pos = self.__wave.position() - self.__wave.width()
         pos = max(pos, 0)
         self.setPosition(pos)
 
     def moveToNextPage(self):
         # FIXME: Have to be improved
-        pos = self.__widget.position() + self.__widget.width()
-        pos = min(pos, self.__widget.memoryLength())
+        pos = self.__wave.position() + self.__wave.width()
+        pos = min(pos, self.__wave.memoryLength())
         self.setPosition(pos)
 
     def memory(self) -> io.IOBase:
-        return self.__widget.memory()
+        return self.__wave.memory()
 
     def setMemory(self, memory: io.IOBase, address: int = 0):
         self.__address = address
-        self.__widget.setMemory(memory)
+        self.__wave.setMemory(memory)
         self.__hexa.setMemory(memory, address=address)
         self.__scroll.setValue(0)
-        self.__scroll.setRange(0, self.__widget.memoryLength())
+        self.__scroll.setRange(0, self.__wave.memoryLength())
 
     def address(self) -> int:
         return self.__address

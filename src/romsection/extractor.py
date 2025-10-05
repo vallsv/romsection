@@ -28,7 +28,7 @@ from .widgets.hexa_view import HexaView
 from .widgets.palette_size_list import PaletteSizeList
 from .widgets.pixel_browser import PixelBrowser
 from .widgets.tile_set_browser import TileSetBrowser
-from .widgets.sound_browser import SoundBrowser
+from .widgets.sample_browser import SampleBrowser
 from .widgets.music_browser import MusicBrowser
 from .gba_file import GBAFile, ByteCodec, MemoryMap, ImageColorMode, ImagePixelOrder, DataType
 from .qt_utils import blockSignals, exceptionAsMessageBox
@@ -189,7 +189,7 @@ class Extractor(Qt.QWidget):
         self._pixelBrowser.setContextMenuPolicy(Qt.Qt.CustomContextMenu)
         self._pixelBrowser.customContextMenuRequested.connect(self._showPixelBrowserContextMenu)
 
-        self._soundBrowser = SoundBrowser(self)
+        self._sampleBrowser = SampleBrowser(self)
         self._musicBrowser = MusicBrowser(self)
 
         self._view = Qt.QStackedLayout()
@@ -200,7 +200,7 @@ class Extractor(Qt.QWidget):
         self._view.addWidget(self._header)
         self._view.addWidget(self._hexa)
         self._view.addWidget(self._pixelBrowser)
-        self._view.addWidget(self._soundBrowser)
+        self._view.addWidget(self._sampleBrowser)
         self._view.addWidget(self._musicBrowser)
 
         leftLayout = Qt.QVBoxLayout()
@@ -477,8 +477,8 @@ class Extractor(Qt.QWidget):
         else:
             # Absolute ROM location have no meaning here
             address = 0
-        self._soundBrowser.setMemory(memory, address=address)
-        self._view.setCurrentWidget(self._soundBrowser)
+        self._sampleBrowser.setMemory(memory, address=address)
+        self._view.setCurrentWidget(self._sampleBrowser)
 
     def _browseMemoryMapDataForMusic(self):
         mem = self._memView.selectedMemoryMap()

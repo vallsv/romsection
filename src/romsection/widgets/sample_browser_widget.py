@@ -9,7 +9,10 @@ from numpy.typing import DTypeLike
 from .sample_codec_combo_box import SampleCodecs
 
 
-class SoundWaveView(Qt.QWidget):
+class SampleBrowserWidget(Qt.QWidget):
+
+    playbackChanged = Qt.pyqtSignal(bool)
+
     def __init__(self, parent: Qt.QWidget | None = None):
         Qt.QWidget.__init__(self, parent=parent)
         self.setSizePolicy(Qt.QSizePolicy.Expanding, Qt.QSizePolicy.Expanding)
@@ -31,6 +34,9 @@ class SoundWaveView(Qt.QWidget):
         self.update()
 
     def playSelection(self):
+        if self.__sink is not None:
+            return
+        self.playbackChanged.emit(True)
         nbBytes, data = self._getSelectedDataAsPlayable()
         self.__bytearray = Qt.QByteArray(data)
         buffer = Qt.QBuffer(self.__bytearray, self)
@@ -60,14 +66,24 @@ class SoundWaveView(Qt.QWidget):
         self.__sink.stateChanged.connect(self._onStateChanged)
         self.__sink.start(buffer)
 
+    def isPlaying(self) -> bool:
+        return self.__sink is not None
+
+    def stop(self):
+        if self.__sink is None:
+            return
+        self.__sink.stop()
+
     def _onStateChanged(self, state: Qt.QAudio.State):
         if self.__sink is None:
             return
         if state == Qt.QAudio.IdleState:
             self.__sink.stop()
+        elif state == Qt.QAudio.StoppedState:
             self.__sink.deleteLater()
             self.__bytearray = None
             self.__sink = None
+            self.playbackChanged.emit(False)
 
     def setNbSamplePerPixels(self, nb_sample: int):
         if nb_sample == self.__nbSamplePerPixel:
