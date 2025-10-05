@@ -149,6 +149,12 @@ class HexaTableModel(Qt.QAbstractTableModel):
             self.__length = 0
         self.endResetModel()
 
+    def indexFromAddress(self, address: int) -> Qt.QModelIndex:
+        if address < self.__address or address >= self.__address + self.__length:
+            return Qt.QModelIndex()
+        row, col = divmod(address - self.__start, 16)
+        return self.index(row, col)
+
     def bytes(self) -> bytes | None:
         """Returns the internal data."""
         return self.__data
@@ -201,8 +207,23 @@ class HexaView(Qt.QTableView):
         header.setSectionResizeMode(0x10, Qt.QHeaderView.Stretch)
 
     def selectedOffset(self) -> int | None:
+        """FIXME: Deprecated"""
+        return self.selectedAddress()
+
+    def selectedAddress(self) -> int | None:
+        """Return the selected address"""
         model = self.selectionModel()
         items = model.selectedIndexes()
         if len(items) != 1:
             return None
         return items[0].data(Qt.Qt.UserRole)
+
+    def selectAddress(self, address: int | None):
+        """Set the selected address"""
+        selectionModel = self.selectionModel()
+        if address is None:
+            selectionModel.clearSelection()
+            return
+        model = self.model()
+        index = model.indexFromAddress(address)
+        selectionModel.select(index, Qt.QItemSelectionModel.ClearAndSelect)
