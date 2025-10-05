@@ -7,6 +7,7 @@ from PyQt5 import Qt
 from numpy.typing import DTypeLike
 
 from .sample_codec_combo_box import SampleCodecs
+from ..array_utils import translate_range_to_uint8
 
 
 class SampleBrowserWidget(Qt.QWidget):
@@ -33,11 +34,13 @@ class SampleBrowserWidget(Qt.QWidget):
         self.__sampleCodec = codec
         self.update()
 
-    def playSelection(self):
+    def playVisible(self):
         if self.__sink is not None:
             return
         self.playbackChanged.emit(True)
-        nbBytes, data = self._getSelectedDataAsPlayable()
+
+        array = self._getVisibleData()
+        data = translate_range_to_uint8(array).tobytes()
         self.__bytearray = Qt.QByteArray(data)
         buffer = Qt.QBuffer(self.__bytearray, self)
         buffer.open(Qt.QIODevice.ReadOnly)
@@ -46,7 +49,7 @@ class SampleBrowserWidget(Qt.QWidget):
         # format.setSampleRate(16000)
         format.setSampleRate(13500)
         format.setChannelCount(1)
-        format.setSampleSize(8 * nbBytes)
+        format.setSampleSize(8)
         format.setCodec("audio/pcm")
         format.setByteOrder(Qt.QAudioFormat.LittleEndian)
         format.setSampleType(Qt.QAudioFormat.UnSignedInt)
@@ -148,10 +151,7 @@ class SampleBrowserWidget(Qt.QWidget):
             return -0x8000, 0x7FFF
         raise ValueError(f"Unsupported sample size {codec}")
 
-    def _getSelectedDataAsPlayable(self) -> tuple[int, bytes]:
-        """
-        Normalize the selected data to unsigned, which is more often supported.
-        """
+    def _getVisibleData(self) -> numpy.ndarray:
         width = self.width()
         codec = self.__sampleCodec.value
         sampleSize = codec.sample_size
@@ -164,30 +164,12 @@ class SampleBrowserWidget(Qt.QWidget):
         data = f.read(size)
         dtype = self._getDtype()
         array = numpy.frombuffer(data, dtype=dtype)
-        if codec.signed:
-            if codec.sample_size == 1:
-                array = (array.astype(numpy.int32) + 0x80).astype(numpy.uint8)
-            if codec.sample_size == 2:
-                array = ((array.astype(numpy.int32) + 0x8000) / 0xFF).astype(numpy.uint8)
-        if not codec.signed:
-            if codec.sample_size == 2:
-                array = (array / 0xFF).astype(numpy.uint8)
-        return 1, array.tobytes()
+        return array
 
     def _getData(self, width: int, height: int) -> tuple[numpy.ndarray, numpy.ndarray]:
         # FIXME: We could filter data which is not aligned
-        sampleSize = self.__sampleCodec.value.sample_size
-        bytePerPixels = sampleSize * self.__nbSamplePerPixel
-        size = width * bytePerPixels
-        end = min(self.__pos + size, self.__len)
-        size = (end - self.__pos) - (end - self.__pos) % bytePerPixels
-        f = self.__memory
-        f.seek(self.__pos, os.SEEK_SET)
-        data = f.read(size)
-        dtype = self._getDtype()
         vrange = self._getRange()
-
-        array = numpy.frombuffer(data, dtype=dtype)
+        array = self._getVisibleData()
         array = array.astype(numpy.float32)
         array = (array - vrange[0]) / (vrange[1] - vrange[0])
         array = (array * height).astype(numpy.uint16)

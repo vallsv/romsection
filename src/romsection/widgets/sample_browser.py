@@ -66,6 +66,7 @@ class SampleBrowser(Qt.QWidget):
 
         self.__playButton = Qt.QPushButton(self.__toolbar)
         self.__playButton.clicked.connect(self._playback)
+        self.__playButton.setToolTip("Playback visible data only")
         self.__playButton.setIcon(Qt.QIcon("icons:play.png"))
         self.__toolbar.addWidget(self.__playButton)
 
@@ -86,7 +87,7 @@ class SampleBrowser(Qt.QWidget):
         if self.__wave.isPlaying():
             self.__wave.stop()
         else:
-            self.__wave.playSelection()
+            self.__wave.playVisible()
 
     def _onPlaybackChanged(self, playing: bool):
         if playing:
