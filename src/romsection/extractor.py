@@ -29,6 +29,7 @@ from .widgets.palette_size_list import PaletteSizeList
 from .widgets.pixel_browser import PixelBrowser
 from .widgets.tile_set_browser import TileSetBrowser
 from .widgets.sound_browser import SoundBrowser
+from .widgets.music_browser import MusicBrowser
 from .gba_file import GBAFile, ByteCodec, MemoryMap, ImageColorMode, ImagePixelOrder, DataType
 from .qt_utils import blockSignals, exceptionAsMessageBox
 from .path_utils import resolve_abspath
@@ -93,6 +94,8 @@ class Extractor(Qt.QWidget):
 
         self.__searchSappyContent = sappy_content.SearchSappyTag()
         self.__searchSappyContent.setContext(self)
+        self.__splitSappySample = sappy_content.SplitSappySample()
+        self.__splitSappySample.setContext(self)
 
         self.__createUncovered = unknown_content.CreateUncoveredMemory()
         self.__createUncovered.setContext(self)
@@ -187,6 +190,7 @@ class Extractor(Qt.QWidget):
         self._pixelBrowser.customContextMenuRequested.connect(self._showPixelBrowserContextMenu)
 
         self._soundBrowser = SoundBrowser(self)
+        self._musicBrowser = MusicBrowser(self)
 
         self._view = Qt.QStackedLayout()
         self._view.addWidget(self._nothing)
@@ -197,6 +201,7 @@ class Extractor(Qt.QWidget):
         self._view.addWidget(self._hexa)
         self._view.addWidget(self._pixelBrowser)
         self._view.addWidget(self._soundBrowser)
+        self._view.addWidget(self._musicBrowser)
 
         leftLayout = Qt.QVBoxLayout()
         leftLayout.addWidget(toolbar)
@@ -385,9 +390,15 @@ class Extractor(Qt.QWidget):
             menu.addAction(saveRaw)
 
             showDataAsWave = Qt.QAction(menu)
-            showDataAsWave.setText("Show data as wave")
+            showDataAsWave.setText("Browse data for sample")
             showDataAsWave.triggered.connect(self._showMemoryMapDataAsSound)
-            showDataAsWave.setIcon(Qt.QIcon("icons:empty.png"))
+            showDataAsWave.setIcon(Qt.QIcon("icons:sample.png"))
+            menu.addAction(showDataAsWave)
+
+            showDataAsWave = Qt.QAction(menu)
+            showDataAsWave.setText("Browse data for music")
+            showDataAsWave.triggered.connect(self._browseMemoryMapDataForMusic)
+            showDataAsWave.setIcon(Qt.QIcon("icons:music.png"))
             menu.addAction(showDataAsWave)
 
             if mem.data_type == DataType.UNKNOWN:
@@ -468,6 +479,20 @@ class Extractor(Qt.QWidget):
             address = 0
         self._soundBrowser.setMemory(memory, address=address)
         self._view.setCurrentWidget(self._soundBrowser)
+
+    def _browseMemoryMapDataForMusic(self):
+        mem = self._memView.selectedMemoryMap()
+        if mem is None:
+            return
+        data = self._rom.extract_data(mem)
+        memory = io.BytesIO(data.tobytes())
+        if mem.byte_codec in (None, ByteCodec.RAW):
+            address = mem.byte_offset
+        else:
+            # Absolute ROM location have no meaning here
+            address = 0
+        self._musicBrowser.setMemory(memory, address=address)
+        self._view.setCurrentWidget(self._musicBrowser)
 
     def _showMemoryMapDataAsHexa(self):
         mem = self._memView.selectedMemoryMap()
@@ -557,6 +582,12 @@ class Extractor(Qt.QWidget):
         split = Qt.QAction(menu)
         split.setText("Split memory map before this address")
         split.triggered.connect(self._splitMemoryMap)
+        menu.addAction(split)
+
+        split = Qt.QAction(menu)
+        split.setText("Split memory map as sappy sample")
+        split.setIcon(Qt.QIcon("icons:sample.png"))
+        split.triggered.connect(self.__splitSappySample.run)
         menu.addAction(split)
 
         menu.exec(globalPos)
@@ -972,7 +1003,7 @@ class Extractor(Qt.QWidget):
             elif mem.data_type == DataType.SAMPLE:
                 self._showMemoryMapDataAsSound()
             elif mem.data_type == DataType.MUSIC:
-                self._showMemoryMapDataAsHexa()
+                self._browseMemoryMapDataForMusic()
             elif mem.data_type == DataType.UNKNOWN:
                 data = self._rom.extract_data(mem)
                 memory = io.BytesIO(data.tobytes())
