@@ -1,10 +1,10 @@
 import struct
 from PyQt5 import Qt
 
+from .. import sappy_utils
+
 
 class SappyInstrumentBank(Qt.QWidget):
-
-    UNUSED_INSTRUMENT = b"\x01\x3c\x00\x00\x02\x00\x00\x00\x00\x00\x0f\x00"
 
     def __init__(self, parent: Qt.QWidget | None):
         Qt.QWidget.__init__(self, parent=parent)
@@ -33,7 +33,7 @@ class SappyInstrumentBank(Qt.QWidget):
     def _formatInstrument(self, data: bytes | None) -> str:
         if data is None:
             return "Not a sappy instrument"
-        if data == self.UNUSED_INSTRUMENT:
+        if data == sappy_utils.UNUSED_INSTRUMENT:
             return "Unused instrument"
 
         instType = data[0]

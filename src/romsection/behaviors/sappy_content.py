@@ -5,6 +5,7 @@ from ..gba_file import GBAFile
 from .behavior import Behavior
 from ..format_utils import format_address
 from ..model import MemoryMap, ByteCodec, DataType
+from .. import sappy_utils
 
 
 class SearchSappyTag(Behavior):
@@ -14,10 +15,9 @@ class SearchSappyTag(Behavior):
     See https://www.romhacking.net/documents/462/
     """
     def run(self):
-        unused_instrument = b"\x01\x3c\x00\x00\x02\x00\x00\x00\x00\x00\x0f\x00"
         context = self.context()
         rom = context.rom()
-        result = rom.search_for_bytes(0, rom.size, unused_instrument)
+        result = rom.search_for_bytes(0, rom.size, sappy_utils.UNUSED_INSTRUMENT)
 
         if result:
             offsets = [format_address(offset) for offset in result]
