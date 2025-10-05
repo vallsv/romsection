@@ -23,15 +23,7 @@ class SampleBrowser(Qt.QWidget):
         self.__toolbar = Qt.QToolBar(self)
         self.__statusbar = Qt.QStatusBar(self)
 
-        frame = Qt.QFrame(self)
-        frame.setFrameShadow(Qt.QFrame.Sunken)
-        frame.setFrameShape(Qt.QFrame.StyledPanel)
-
-        waveView = SampleBrowserWidget(frame)
-        self.__wave = waveView
-        self.__scroll = Qt.QScrollBar(frame)
-        self.__scroll.setTracking(True)
-        self.__scroll.setOrientation(Qt.Qt.Horizontal)
+        self.__wave = SampleBrowserWidget(self)
 
         self.__hexa = HexaView(self)
         self.__hexa.setVisible(False)
@@ -46,15 +38,6 @@ class SampleBrowser(Qt.QWidget):
         self.__toolbar.addAction(self.__showHexa)
 
         self.__toolbar.addSeparator()
-
-        frameLayout = Qt.QVBoxLayout(frame)
-        frame.setLayout(frameLayout)
-        frameLayout.setSpacing(0)
-        frameLayout.setContentsMargins(0, 0, 0, 0)
-        frameLayout.addWidget(self.__wave)
-        frameLayout.addWidget(self.__scroll)
-
-        frameLayout.setStretchFactor(self.__wave, 1)
 
         self.__samplePerPixels = Qt.QSpinBox(self.__toolbar)
         self.__samplePerPixels.setRange(1, 128)
@@ -73,14 +56,14 @@ class SampleBrowser(Qt.QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
 
         layout.addWidget(self.__toolbar)
-        layout.addWidget(frame)
-        frameLayout.addWidget(self.__hexa)
+        layout.addWidget(self.__wave)
+        layout.addWidget(self.__hexa)
         layout.addWidget(self.__statusbar)
-        layout.setStretchFactor(frame, 1)
+        layout.setStretchFactor(self.__wave, 1)
+        layout.setStretchFactor(self.__hexa, 1)
 
-        self.__samplePerPixels.valueChanged.connect(waveView.setNbSamplePerPixels)
-        self.__scroll.valueChanged.connect(self.setPosition)
-        self.__sampleCodec.valueChanged.connect(waveView.setSampleCodec)
+        self.__samplePerPixels.valueChanged.connect(self.__wave.setNbSamplePerPixels)
+        self.__sampleCodec.valueChanged.connect(self.__wave.setSampleCodec)
         self.__wave.playbackChanged.connect(self._onPlaybackChanged)
 
     def _playback(self):
@@ -143,8 +126,6 @@ class SampleBrowser(Qt.QWidget):
         self.__address = address
         self.__wave.setMemory(memory)
         self.__hexa.setMemory(memory, address=address)
-        self.__scroll.setValue(0)
-        self.__scroll.setRange(0, self.__wave.memoryLength())
 
     def address(self) -> int:
         return self.__address
