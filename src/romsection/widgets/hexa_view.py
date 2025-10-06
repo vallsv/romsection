@@ -1,4 +1,6 @@
+from __future__ import annotations
 import io
+import lru
 from PyQt5 import Qt
 
 
@@ -20,6 +22,7 @@ class HexaTableModel(Qt.QAbstractTableModel):
         self.__padding: int = 0
         self.__font = Qt.QFontDatabase.systemFont(Qt.QFontDatabase.FixedFont)
         self.__palette = Qt.QPalette()
+        self.__ascii: lru.LRU[int, str] = lru.LRU(256)
 
     def rowCount(self, parent_idx=None):
         """Returns number of rows to be displayed in table"""
@@ -30,6 +33,32 @@ class HexaTableModel(Qt.QAbstractTableModel):
     def columnCount(self, parent_idx=None):
         """Returns number of columns to be displayed in table"""
         return 0x10 + 1
+
+    def _getAscii(self, row: int) -> str:
+        if self.__data is None:
+            return ""
+
+        ascii = self.__ascii.get(row, None)
+        if ascii is not None:
+            return ascii
+
+        start = row << 4
+        text = ""
+        for i in range(0x10):
+            pos = start + i
+            if pos >= self.__length:
+                break
+            if pos < self.__padding:
+                text += " "
+                continue
+            value = self.__data[pos - self.__padding]
+            if value > 0x20 and value < 0x7F:
+                text += chr(value)
+            else:
+                text += "."
+
+        self.__ascii[row] = text
+        return text
 
     def data(self, index, role=Qt.Qt.DisplayRole):
         """QAbstractTableModel method to access data values
@@ -54,22 +83,14 @@ class HexaTableModel(Qt.QAbstractTableModel):
             else:
                 return None
 
-        if role == Qt.Qt.DisplayRole:
+        elif role == Qt.Qt.ForegroundRole:
             if column == 0x10:
-                start = row << 4
-                text = ""
-                for i in range(0x10):
-                    pos = start + i
-                    if pos >= self.__length:
-                        break
-                    if pos < self.__padding:
-                        break
-                    value = self.__data[pos - self.__padding]
-                    if value > 0x20 and value < 0x7F:
-                        text += chr(value)
-                    else:
-                        text += "."
-                return text
+                return Qt.QColorConstants.Black
+
+        elif role == Qt.Qt.DisplayRole:
+            if column == 0x10:
+                ascii = self._getAscii(row)
+                return ascii
             else:
                 pos = (row << 4) + column
                 if pos < self.__padding:
@@ -84,7 +105,7 @@ class HexaTableModel(Qt.QAbstractTableModel):
 
         elif role == Qt.Qt.BackgroundRole:
             pos = (row << 4) + column
-            if column != 0x10 and (pos < self.__padding or pos >= self.__length):
+            if column == 0x10 or (pos < self.__padding or pos >= self.__length):
                 return self.__palette.color(Qt.QPalette.Disabled, Qt.QPalette.Window)
             else:
                 return None
@@ -125,14 +146,16 @@ class HexaTableModel(Qt.QAbstractTableModel):
                     return Qt.Qt.AlignCenter
         return None
 
-    def flags(self, index):
+    def flags(self, index: Qt.QModelIndex):
         """QAbstractTableModel method to inform the view whether data
         is editable or not.
         """
-        row = index.row()
         column = index.column()
+        if column == 0x10:
+            return Qt.Qt.NoItemFlags
+        row = index.row()
         pos = (row << 4) + column
-        if column != 0x10 and pos >= self.__length:
+        if pos < self.__padding or pos >= self.__length:
             return Qt.Qt.NoItemFlags
         return Qt.QAbstractTableModel.flags(self, index)
 
@@ -147,6 +170,7 @@ class HexaTableModel(Qt.QAbstractTableModel):
             self.__length = self.__padding + len(data)
         else:
             self.__length = 0
+        self.__ascii.clear()
         self.endResetModel()
 
     def indexFromAddress(self, address: int) -> Qt.QModelIndex:
