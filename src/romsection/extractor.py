@@ -32,6 +32,7 @@ from .widgets.tile_set_browser import TileSetBrowser
 from .widgets.sample_browser import SampleBrowser
 from .widgets.music_browser import MusicBrowser
 from .widgets.sample_view import SampleView
+from .widgets.music_view import MusicView
 from .gba_file import GBAFile, ByteCodec, MemoryMap, ImageColorMode, ImagePixelOrder, DataType
 from .qt_utils import blockSignals, exceptionAsMessageBox
 from .path_utils import resolve_abspath
@@ -199,6 +200,7 @@ class Extractor(Qt.QWidget):
         self._sampleBrowser = SampleBrowser(self)
         self._musicBrowser = MusicBrowser(self)
         self._sampleView = SampleView(self)
+        self._musicView = MusicView(self)
 
         self._view = Qt.QStackedLayout()
         self._view.addWidget(self._nothing)
@@ -211,6 +213,7 @@ class Extractor(Qt.QWidget):
         self._view.addWidget(self._sampleBrowser)
         self._view.addWidget(self._musicBrowser)
         self._view.addWidget(self._sampleView)
+        self._view.addWidget(self._musicView)
 
         leftLayout = Qt.QVBoxLayout()
         leftLayout.addWidget(toolbar)
@@ -315,6 +318,7 @@ class Extractor(Qt.QWidget):
         self._rom = rom
         self._paletteList.setRom(rom)
         self._sampleView.setRom(rom)
+        self._musicView.setRom(rom)
         if rom is None:
             self._memoryMapList.setObjectList([])
             self.setWindowTitle("No ROM loaded")
@@ -1033,7 +1037,8 @@ class Extractor(Qt.QWidget):
                 self._sampleView.setMemoryMap(mem)
                 self._view.setCurrentWidget(self._sampleView)
             elif mem.data_type == DataType.MUSIC:
-                self._browseMemoryMapDataForMusic()
+                self._musicView.setMemoryMap(mem)
+                self._view.setCurrentWidget(self._musicView)
             elif mem.data_type == DataType.UNKNOWN:
                 data = self._rom.extract_data(mem)
                 memory = io.BytesIO(data.tobytes())
