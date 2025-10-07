@@ -32,7 +32,7 @@ class SappyInstrumentBank(Qt.QWidget):
 
     def _formatInstrument(self, data: bytes | None) -> str:
         if data is None:
-            return "Not a sappy instrument"
+            return ""
         if data == sappy_utils.UNUSED_INSTRUMENT:
             return "Unused instrument"
 
