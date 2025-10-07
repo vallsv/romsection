@@ -121,6 +121,31 @@ class GBAFile:
             if on_progress is not None:
                 on_progress(offset)
 
+    def search_for_bytes(self,
+        offset_from: int,
+        offset_to: int,
+        data: bytes
+    ) -> list[int]:
+        """
+        Search for this `data` sequence of bytes in the ROM.
+
+        Return the found offsets.
+        """
+        size = len(data)
+        f = self._f
+        offset = offset_from
+        result: list[int] = []
+        while offset < offset_to:
+            f.seek(offset, os.SEEK_SET)
+            d = f.read(size)
+            if len(d) != size:
+                break
+            if d == data:
+                result.append(offset)
+            # FIXME: d can be used to skip even more steps
+            offset += 1
+        return result
+
     def extract_raw(self, mem: MemoryMap) -> bytes:
         f = self._f
         f.seek(mem.byte_offset, os.SEEK_SET)

@@ -37,6 +37,7 @@ class MemoryMapListModel(ObjectListModel):
             mem = self.object(index)
             if mem is None:
                 return Qt.QIcon()
+            data_type_name = "" if mem.data_type is None else mem.data_type.name
             if mem.data_type == DataType.IMAGE:
                 return Qt.QIcon("icons:image.png")
             if mem.data_type == DataType.PALETTE:
@@ -49,6 +50,10 @@ class MemoryMapListModel(ObjectListModel):
                 return Qt.QIcon("icons:padding.png")
             if mem.data_type == DataType.GBA_ROM_HEADER:
                 return Qt.QIcon("icons:gba.png")
+            if data_type_name.startswith("SAMPLE_"):
+                return Qt.QIcon("icons:sample.png")
+            if data_type_name.startswith("MUSIC_"):
+                return Qt.QIcon("icons:music.png")
 
             return Qt.QIcon("icons:empty.png")
 

@@ -73,3 +73,38 @@ def convert_a1rgb15_to_argb32(data: numpy.ndarray, use_alpha: bool = False) -> n
     hi = convert_uint5_to_uint8((data >> 10) & 0x1F)
     data = numpy.stack((hi, mid, lo, alpha), dtype=numpy.uint8).T
     return numpy.ascontiguousarray(data)
+
+
+def translate_range_to_uint8(array: numpy.ndarray) -> numpy.ndarray:
+    """"
+    Convert array into `uint8`, `0..255`.
+
+    The range is converted to let the same dynamic (modulo the size).
+    The middle location stay at the middle anyway signed or not.
+
+    - For `uint16`, `0..FFFF` is translated into `0..FF`.
+    - For `int16`, `-8000..7FFF` is translated into `0..FF`.
+    """
+    if array.dtype == numpy.uint8:
+        return array
+
+    dtype = array.dtype
+    if array.dtype == numpy.int8:
+        return array.view(numpy.uint8) + 0x80
+
+    kind = array.dtype.kind
+    if kind not in ("u", "i"):
+        raise ValueError(f"Unsupported {array.dtype} array")
+
+    itemsize = array.dtype.itemsize
+    byteorder = array.dtype.byteorder
+    array = array.view(numpy.uint8)
+    if byteorder == "<":
+        array = array[0::itemsize]
+    else:
+        array = array[itemsize - 1::itemsize]
+
+    if kind == "i":
+        array = array + 0x80
+
+    return array

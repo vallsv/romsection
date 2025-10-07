@@ -5,7 +5,10 @@ import dataclasses
 
 class ByteCodec(enum.Enum):
     RAW = enum.auto()
+    """Uncompressed memory"""
+
     LZ77 = enum.auto()
+    """Compressed as LZ77"""
 
 
 class DataType(enum.Enum):
@@ -20,6 +23,23 @@ class DataType(enum.Enum):
     Memory map compound by a set of tiles of the same size.
 
     The properties of the IMAGE are used, but are applied to a single tile.
+    """
+
+    SAMPLE_INT8 = enum.auto()
+    """Sample raw data encoded in int8."""
+
+    SAMPLE_SAPPY = enum.auto()
+    """
+    Sample as stored by sappy.
+
+    See https://www.romhacking.net/documents/462/
+    """
+
+    MUSIC_INSTRUMENT_SAPPY = enum.auto()
+    """
+    Music instrument bank as stored by sappy
+
+    See https://www.romhacking.net/documents/462/
     """
 
     UNKNOWN = enum.auto()

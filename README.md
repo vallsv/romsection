@@ -13,12 +13,13 @@ That's tuff process.
 
 # Features
 
-- Image with indexed 16 or 256 colors
+- Image
+   - Indexed 16 or 256 colors
+   - 8x8 tiled memory layout
 - Palette in RGB 16 bits
-- LZ77 compression
-- 8x8 tiled memory layout
-- Hexa and pixel browser for unidentified memory
-- Viewer for image, palette, tile set, GBA header
+- Data compressed in LZ77
+- Hexa, pixel, audio sample browser for unidentified memory
+- Viewer for image, palette, tile set, sample, few music table, GBA header
 
 # Install
 
