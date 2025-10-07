@@ -2,7 +2,7 @@ import io
 import numpy
 from PyQt5 import Qt
 
-from ..model import MemoryMap, SampleCodec
+from ..model import MemoryMap, DataType
 from ..gba_file import GBAFile
 from .. import sappy_utils
 from .sample_browser_widget import SampleBrowserWidget
@@ -79,16 +79,16 @@ class SampleView(Qt.QWidget):
 
         array = rom.extract_data(mem)
         data = array.tobytes()
-        sample_codec = mem.sample_codec
+        data_type = mem.data_type
 
-        if sample_codec == SampleCodec.RAW_INT8:
+        if data_type == DataType.SAMPLE_INT8:
             memory = io.BytesIO(data)
             self.__wave.setPosition(0)
             self.__wave.setSampleCodec(SampleCodecs.INT8)
             self.__wave.setMemory(memory)
             self.__statusbar.showMessage("INT8")
 
-        elif sample_codec == SampleCodec.SAPPY:
+        elif data_type == DataType.SAMPLE_SAPPY:
             if len(data) < 16:
                 raise ValueError(f"Data is smaller ({len(data)}) than the expected header")
             header = data[0:16]
@@ -103,4 +103,4 @@ class SampleView(Qt.QWidget):
             self.__statusbar.showMessage(desc)
 
         else:
-            raise ValueError(f"Unsupported sample codec {sample_codec}")
+            raise ValueError(f"Unsupported data type {data_type}")

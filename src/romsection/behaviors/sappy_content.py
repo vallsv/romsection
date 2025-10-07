@@ -73,7 +73,7 @@ class SplitSappySample(Behavior):
             byte_offset=address,
             byte_length=16 + size + 1,  # Sounds like +1 is mandatory
             byte_codec=ByteCodec.RAW,
-            data_type=DataType.SAMPLE,
+            data_type=DataType.SAMPLE_SAPPY,
         )
 
         nextMem = MemoryMap(
