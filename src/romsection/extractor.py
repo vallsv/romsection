@@ -139,7 +139,6 @@ class Extractor(Qt.QWidget):
         self._memView.selectionModel().selectionChanged.connect(self._onMemoryMapSelectionChanged)
         self._memView.setContextMenuPolicy(Qt.Qt.CustomContextMenu)
         self._memView.customContextMenuRequested.connect(self._showMemoryMapContextMenu)
-        self._memView.setSelectionMode(Qt.QAbstractItemView.ExtendedSelection)
 
         self._byteCodecList = ByteCodecList(self)
         self._byteCodecList.itemSelectionChanged.connect(self._onByteCodecSelected)
