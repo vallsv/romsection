@@ -158,6 +158,7 @@ class GBAFile:
         result = decompress_lz77(f)
         offset_end = f.tell()
         mem.byte_length = offset_end - mem.byte_offset
+        mem.byte_payload = len(result)
         return result
 
     def extract_data(self, mem: MemoryMap) -> numpy.ndarray:
