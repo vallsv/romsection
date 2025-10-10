@@ -11,48 +11,62 @@ class ByteCodec(enum.Enum):
     """Compressed as LZ77"""
 
 
-class DataType(enum.Enum):
+class DataTypeGroup(enum.Enum):
     IMAGE = enum.auto()
+    PALETTE = enum.auto()
+    TILE_SET = enum.auto()
+    SAMPLE = enum.auto()
+    MUSIC = enum.auto()
+    OTHER = enum.auto()
+
+
+@dataclasses.dataclass(frozen=True, eq=False)
+class DataTypeDesc:
+    group: DataTypeGroup
+
+
+class DataType(enum.Enum):
+    IMAGE = DataTypeDesc(group=DataTypeGroup.IMAGE)
     """Memory map which can be represented as a image."""
 
-    PALETTE = enum.auto()
+    PALETTE = DataTypeDesc(group=DataTypeGroup.PALETTE)
     """Memory map compound by a set of colors."""
 
-    TILE_SET = enum.auto()
+    TILE_SET = DataTypeDesc(group=DataTypeGroup.TILE_SET)
     """
     Memory map compound by a set of tiles of the same size.
 
     The properties of the IMAGE are used, but are applied to a single tile.
     """
 
-    SAMPLE_INT8 = enum.auto()
+    SAMPLE_INT8 = DataTypeDesc(group=DataTypeGroup.SAMPLE)
     """Sample raw data encoded in int8."""
 
-    SAMPLE_SAPPY = enum.auto()
+    SAMPLE_SAPPY = DataTypeDesc(group=DataTypeGroup.SAMPLE)
     """
     Sample as stored by sappy.
 
     See https://www.romhacking.net/documents/462/
     """
 
-    MUSIC_INSTRUMENT_SAPPY = enum.auto()
+    MUSIC_INSTRUMENT_SAPPY = DataTypeDesc(group=DataTypeGroup.MUSIC)
     """
     Music instrument bank as stored by sappy
 
     See https://www.romhacking.net/documents/462/
     """
 
-    UNKNOWN = enum.auto()
+    UNKNOWN = DataTypeDesc(group=DataTypeGroup.OTHER)
     """Memory map which is not yet identified."""
 
-    GBA_ROM_HEADER = enum.auto()
+    GBA_ROM_HEADER = DataTypeDesc(group=DataTypeGroup.OTHER)
     """
     Memory map containing GBA description.
 
     See http://problemkaputt.de/gbatek.htm#gbacartridgeheader
     """
 
-    PADDING = enum.auto()
+    PADDING = DataTypeDesc(group=DataTypeGroup.OTHER)
     """
     Memory map which fill the memory with anything (usually 0) for
     better alignement of the next memory map.
