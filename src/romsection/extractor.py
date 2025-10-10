@@ -32,6 +32,7 @@ from .widgets.sample_browser import SampleBrowser
 from .widgets.music_browser import MusicBrowser
 from .widgets.sample_view import SampleView
 from .widgets.music_view import MusicView
+from .widgets.memory_map_filter_drop import MemoryMapFilterDrop
 from .gba_file import GBAFile, ByteCodec, MemoryMap, ImageColorMode, ImagePixelOrder, DataType
 from .qt_utils import blockSignals, exceptionAsMessageBox
 from .path_utils import resolve_abspath
@@ -81,6 +82,11 @@ class Extractor(Qt.QWidget):
         saveAsAction.setText("Save the ROM dissection into another file")
         saveAsAction.setIcon(Qt.QIcon("icons:save-as.png"))
         toolbar.addAction(saveAsAction)
+
+        toolbar.addSeparator()
+
+        self._memoryMapFilter = MemoryMapFilterDrop(self)
+        toolbar.addWidget(self._memoryMapFilter)
 
         spacer = Qt.QWidget(toolbar)
         spacer.setSizePolicy(Qt.QSizePolicy.Expanding, Qt.QSizePolicy.Expanding)
@@ -229,6 +235,9 @@ class Extractor(Qt.QWidget):
         main.addLayout(spriteCodec)
         main.addLayout(self._view)
         main.setStretchFactor(self._view, 1)
+
+        filterModel = self._memView.filterModel()
+        self._memoryMapFilter.shownDataTypeChanged.connect(filterModel.setShownDataTypes)
 
         self.setRom(None)
 

@@ -27,7 +27,7 @@ class MemoryMapProxyModel(Qt.QSortFilterProxyModel):
 
     def __init__(self, parent: Qt.QObject | None = None):
         Qt.QSortFilterProxyModel.__init__(self, parent=parent)
-        self._allowed: set[DataType] | None = None
+        self._shown: set[DataType] | None = None
 
     def columnCount(self, parent: Qt.QModelIndex) -> int:
         return self.NbColumns
@@ -46,8 +46,8 @@ class MemoryMapProxyModel(Qt.QSortFilterProxyModel):
             return None
         return sourceIndex.data(ObjectListModel.ObjectRole)
 
-    def setAllowedDataTypes(self, allowed: set[DataType] | None):
-        self._allowed = allowed
+    def setShownDataTypes(self, shown: set[DataType] | None):
+        self._shown = shown
         self.invalidateFilter()
 
     def data(self, index: Qt.QModelIndex, role: int = Qt.Qt.DisplayRole):
@@ -95,5 +95,5 @@ class MemoryMapProxyModel(Qt.QSortFilterProxyModel):
         if not index.isValid():
             return True
         mem = sourceModel.data(index, role=ObjectListModel.ObjectRole)
-        allowed = self._allowed
-        return allowed is None or mem.data_type in allowed
+        shown = self._shown
+        return shown is None or mem.data_type in shown
