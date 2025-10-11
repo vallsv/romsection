@@ -101,3 +101,64 @@ class SplitSappySample(Behavior):
         index += 1
         if nextMem.byte_length != 0:
             memoryMapList.insertObject(index, nextMem)
+
+
+class SearchSappySongHeaderFromInstrument(Behavior):
+    """
+    Search for the address of an instrument table.
+
+    An instrument table is linked from a Song header.
+
+    See https://www.romhacking.net/documents/462/
+    """
+    def run(self):
+        context = self.context()
+        rom = context.rom()
+        mem = context._memView.selectedMemoryMap()
+        if mem is None:
+            Qt.QMessageBox.information(
+                context,
+                "Error",
+                "No selected memory map. A single Sappy instrument table have to be selected."
+            )
+            return
+
+        if mem.data_type != DataType.MUSIC_INSTRUMENT_SAPPY:
+            Qt.QMessageBox.information(
+                context,
+                "Error",
+                "The selected memory map is not a Sappy Instrument Sappy instrument table"
+            )
+            return
+
+        ramAddress = mem.byte_offset + 0x8000000
+        byteAddress = struct.pack("<L", ramAddress)
+        result = rom.search_for_bytes(0, rom.size, byteAddress)
+
+        if True:
+            # Seach inside compressed data
+            # That's maybe not needed
+            memoryMapList = context.memoryMapList()
+            for mem in memoryMapList:
+                if mem.data_type != DataType.UNKNOWN:
+                    continue
+                if mem.byte_codec == ByteCodec.RAW:
+                    continue
+                result2 = rom.search_for_bytes_in_data(mem, byteAddress)
+                if len(result2) != 0:
+                    result.append(mem.byte_offset)
+
+        if result:
+            offsets = [format_address(offset) for offset in result]
+            string = ", ".join(offsets)
+            Qt.QMessageBox.information(
+                context,
+                "Result",
+                f"The following offsets looks to link this SAPPY instrument table:\n{string}"
+            )
+        else:
+            Qt.QMessageBox.information(
+                context,
+                "Result",
+                "Nothing was found"
+            )

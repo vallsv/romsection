@@ -103,6 +103,9 @@ class Extractor(Qt.QWidget):
 
         self.__searchSappyContent = sappy_content.SearchSappyTag()
         self.__searchSappyContent.setContext(self)
+        self.__searchSappySong = sappy_content.SearchSappySongHeaderFromInstrument()
+        self.__searchSappySong.setContext(self)
+
         self.__splitSappySample = sappy_content.SplitSappySample()
         self.__splitSappySample.setContext(self)
 
@@ -134,6 +137,14 @@ class Extractor(Qt.QWidget):
         action.setText("Search for sappy content")
         action.setIcon(Qt.QIcon("icons:music.png"))
         toolMenu.addAction(action)
+
+        action = Qt.QAction(self)
+        action.triggered.connect(self.__searchSappySong.run)
+        action.setText("Search for sappy song header (from instrument table)")
+        action.setIcon(Qt.QIcon("icons:music.png"))
+        toolMenu.addAction(action)
+
+        toolMenu.addSeparator()
 
         action = Qt.QAction(self)
         action.triggered.connect(self.__replaceUnknownByPadding.run)
