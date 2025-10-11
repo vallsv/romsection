@@ -428,11 +428,11 @@ class Extractor(Qt.QWidget):
             showDataAsWave.setIcon(Qt.QIcon("icons:sample.png"))
             menu.addAction(showDataAsWave)
 
-            showDataAsWave = Qt.QAction(menu)
-            showDataAsWave.setText("Browse data for music")
-            showDataAsWave.triggered.connect(self._browseMemoryMapDataForMusic)
-            showDataAsWave.setIcon(Qt.QIcon("icons:music.png"))
-            menu.addAction(showDataAsWave)
+            showDataAsMusic = Qt.QAction(menu)
+            showDataAsMusic.setText("Browse data for music")
+            showDataAsMusic.triggered.connect(self._browseMemoryMapDataForMusic)
+            showDataAsMusic.setIcon(Qt.QIcon("icons:music.png"))
+            menu.addAction(showDataAsMusic)
 
             if mem.data_type == DataType.UNKNOWN:
                 menu.addSeparator()
