@@ -9,6 +9,7 @@ class TileSetBrowser(Qt.QWidget):
         Qt.QWidget.__init__(self, parent)
         self.__view = Qt.QListView(self)
         self.__view.setViewMode(Qt.QListView.IconMode)
+        self.__view.setResizeMode(Qt.QListView.Adjust)
         self.__view.setWrapping(True)
         self.__view.setIconSize(Qt.QSize(64, 64))
         self.__model = TileSetModel(self)
