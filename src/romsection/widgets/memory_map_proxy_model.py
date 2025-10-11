@@ -10,6 +10,25 @@ from .object_list_model import ObjectListModel
 from ..gba_file import MemoryMap, ByteCodec, DataType
 
 
+class MemoryMapFilter(typing.NamedTuple):
+    shownDataTypes: set[DataType] | None = None
+    minBytePayload: int | None = None
+    maxBytePayload: int | None = None
+
+    def accepts(self, mem: MemoryMap) -> bool:
+        if self.shownDataTypes is not None:
+            if mem.data_type not in self.shownDataTypes:
+                return False
+        bytePayload = mem.byte_payload or mem.byte_length or 0
+        if self.minBytePayload is not None:
+            if bytePayload < self.minBytePayload:
+                return False
+        if self.maxBytePayload is not None:
+            if bytePayload > self.maxBytePayload:
+                return False
+        return True
+
+
 def format_size(size: int) -> str:
     if size < 2 * 1024:
         return f"{size} B"
@@ -27,7 +46,7 @@ class MemoryMapProxyModel(Qt.QSortFilterProxyModel):
 
     def __init__(self, parent: Qt.QObject | None = None):
         Qt.QSortFilterProxyModel.__init__(self, parent=parent)
-        self._shown: set[DataType] | None = None
+        self._filter: MemoryMapFilter | None = None
 
     def columnCount(self, parent: Qt.QModelIndex) -> int:
         return self.NbColumns
@@ -46,8 +65,8 @@ class MemoryMapProxyModel(Qt.QSortFilterProxyModel):
             return None
         return sourceIndex.data(ObjectListModel.ObjectRole)
 
-    def setShownDataTypes(self, shown: set[DataType] | None):
-        self._shown = shown
+    def setFilter(self, filter: MemoryMapFilter | None):
+        self._filter = filter
         self.invalidateFilter()
 
     def data(self, index: Qt.QModelIndex, role: int = Qt.Qt.DisplayRole):
@@ -95,5 +114,7 @@ class MemoryMapProxyModel(Qt.QSortFilterProxyModel):
         if not index.isValid():
             return True
         mem = sourceModel.data(index, role=ObjectListModel.ObjectRole)
-        shown = self._shown
-        return shown is None or mem.data_type in shown
+        filter = self._filter
+        if filter is None:
+            return True
+        return filter.accepts(mem)

@@ -66,3 +66,8 @@ class MemoryMapListView(Qt.QWidget):
             return None
         mem = index.data(Qt.Qt.UserRole)
         return mem
+
+    def scrollTo(self, mem: MemoryMap):
+        model = self.__table.model()
+        index = model.objectIndex(mem)
+        self.__table.scrollTo(index)

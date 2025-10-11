@@ -33,6 +33,7 @@ from .widgets.music_browser import MusicBrowser
 from .widgets.sample_view import SampleView
 from .widgets.music_view import MusicView
 from .widgets.memory_map_filter_drop import MemoryMapFilterDrop
+from .widgets.memory_map_proxy_model import MemoryMapFilter
 from .gba_file import GBAFile, ByteCodec, MemoryMap, ImageColorMode, ImagePixelOrder, DataType
 from .qt_utils import blockSignals, exceptionAsMessageBox
 from .path_utils import resolve_abspath
@@ -236,10 +237,15 @@ class Extractor(Qt.QWidget):
         main.addLayout(self._view)
         main.setStretchFactor(self._view, 1)
 
-        filterModel = self._memView.filterModel()
-        self._memoryMapFilter.shownDataTypeChanged.connect(filterModel.setShownDataTypes)
+        self._memoryMapFilter.filterChanged.connect(self.__setMemoryMapFilter)
 
         self.setRom(None)
+
+    def __setMemoryMapFilter(self, filter: MemoryMapFilter | None):
+        mem = self._memView.selectedMemoryMap()
+        self._memView.filterModel().setFilter(filter)
+        if mem is not None:
+            self._memView.scrollTo(mem)
 
     def loadFromDialog(self):
         filename = file_dialog.getTomlOrRomFilenameFromDialog(self)
