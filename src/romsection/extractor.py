@@ -27,7 +27,7 @@ from .widgets.sprite_view import SpriteView
 from .widgets.hexa_view import HexaView
 from .widgets.palette_size_list import PaletteSizeList
 from .widgets.pixel_browser import PixelBrowser
-from .widgets.tile_set_browser import TileSetBrowser
+from .widgets.tile_set_view import TileSetView
 from .widgets.sample_browser import SampleBrowser
 from .widgets.music_browser import MusicBrowser
 from .widgets.sample_view import SampleView
@@ -196,7 +196,7 @@ class Extractor(Qt.QWidget):
 
         self._image = SpriteView(self)
 
-        self._tilesetBrowser = TileSetBrowser(self)
+        self._tileSetView = TileSetView(self)
 
         self._header = GbaRomHeaderView(self)
 
@@ -216,7 +216,7 @@ class Extractor(Qt.QWidget):
         self._view = Qt.QStackedLayout()
         self._view.addWidget(self._nothing)
         self._view.addWidget(self._image)
-        self._view.addWidget(self._tilesetBrowser)
+        self._view.addWidget(self._tileSetView)
         self._view.addWidget(self._error)
         self._view.addWidget(self._header)
         self._view.addWidget(self._hexa)
@@ -1052,8 +1052,8 @@ class Extractor(Qt.QWidget):
                 self._view.setCurrentWidget(self._pixelBrowser)
             elif mem.data_type == DataType.TILE_SET:
                 data = self._rom.tile_set_data(mem)
-                self._tilesetBrowser.setData(data)
-                self._view.setCurrentWidget(self._tilesetBrowser)
+                self._tileSetView.setData(data)
+                self._view.setCurrentWidget(self._tileSetView)
             else:
                 data = self._readImage(mem)
                 self._image.setData(data)

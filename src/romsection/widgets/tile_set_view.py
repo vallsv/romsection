@@ -4,7 +4,7 @@ from PyQt5 import Qt
 from .tile_set_model import TileSetModel
 
 
-class TileSetBrowser(Qt.QWidget):
+class TileSetView(Qt.QWidget):
     def __init__(self, parent: Qt.QWidget | None = None):
         Qt.QWidget.__init__(self, parent)
         self.__view = Qt.QListView(self)
