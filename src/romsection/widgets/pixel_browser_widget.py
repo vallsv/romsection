@@ -7,6 +7,7 @@ from PyQt5 import Qt
 from ..gba_file import ImageColorMode, ImagePixelOrder
 from .. import array_utils
 from ..codec import byte_per_element, pixel_per_element
+from ..qt_utils import blockSignals
 
 
 @dataclasses.dataclass
@@ -576,6 +577,8 @@ class PixelBrowserView(Qt.QWidget):
 
 class PixelBrowserWidget(Qt.QFrame):
 
+    positionChanged = Qt.pyqtSignal(int)
+
     selectionChanged = Qt.pyqtSignal(object)
 
     def __init__(self, parent: Qt.QWidget | None = None):
@@ -608,7 +611,9 @@ class PixelBrowserWidget(Qt.QFrame):
         self.__scroll.setRange(0, self.memoryLength() - pageSize)
 
     def __positionChanged(self, position: int):
-        self.__scroll.setValue(position)
+        with blockSignals(self.__scroll):
+            self.__scroll.setValue(position)
+        self.positionChanged.emit(position)
 
     def __selectionChanged(self, selection: tuple[int, int] | None):
         self.selectionChanged.emit(selection)
