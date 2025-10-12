@@ -12,7 +12,7 @@ See https://www.romhacking.net/documents/462/
 UNUSED_INSTRUMENT = b"\x01\x3c\x00\x00\x02\x00\x00\x00\x00\x00\x0f\x00"
 
 
-class InstrumentSample(typing.NamedTuple):
+class InstrumentSampleItem(typing.NamedTuple):
     kind: int
     key: int
     unused: int
@@ -28,12 +28,12 @@ class InstrumentSample(typing.NamedTuple):
         return "Sample (GBA Direct Sound channel)"
 
     @staticmethod
-    def parse(data: bytes) -> "InstrumentSample":
+    def parse(data: bytes) -> "InstrumentSampleItem":
         res = struct.unpack("<BBBBLBBBB", data)
-        return InstrumentSample._make(res)
+        return InstrumentSampleItem._make(res)
 
 
-class InstrumentPsg(typing.NamedTuple):
+class InstrumentPsgItem(typing.NamedTuple):
     channel: int
     key: int
     timelength: int
@@ -49,12 +49,12 @@ class InstrumentPsg(typing.NamedTuple):
         return "PSG instrument / sub-instrument"
 
     @staticmethod
-    def parse(data: bytes) -> "InstrumentSample":
+    def parse(data: bytes) -> "InstrumentSampleItem":
         res = struct.unpack("<BBBBLBBBB", data)
-        return InstrumentSample._make(res)
+        return InstrumentSampleItem._make(res)
 
 
-class InstrumentKeySplit(typing.NamedTuple):
+class InstrumentKeySplitItem(typing.NamedTuple):
     kind: int
     zero1: int
     zero2: int
@@ -67,12 +67,12 @@ class InstrumentKeySplit(typing.NamedTuple):
         return "Key-Split instruments"
 
     @staticmethod
-    def parse(data: bytes) -> "InstrumentKeySplit":
+    def parse(data: bytes) -> "InstrumentKeySplitItem":
         res = struct.unpack("<BBBBLL", data)
-        return InstrumentKeySplit._make(res)
+        return InstrumentKeySplitItem._make(res)
 
 
-class InstrumentEveryKeySplit(typing.NamedTuple):
+class InstrumentEveryKeySplitItem(typing.NamedTuple):
     kind: int
     zero1: int
     zero2: int
@@ -85,12 +85,12 @@ class InstrumentEveryKeySplit(typing.NamedTuple):
         return "Every Key Split (percussion) instrument"
 
     @staticmethod
-    def parse(data: bytes) -> "InstrumentEveryKeySplit":
+    def parse(data: bytes) -> "InstrumentEveryKeySplitItem":
         res = struct.unpack("<BBBBLL", data)
-        return InstrumentEveryKeySplit._make(res)
+        return InstrumentEveryKeySplitItem._make(res)
 
 
-class InstrumentUnused(typing.NamedTuple):
+class InstrumentUnusedItem(typing.NamedTuple):
     data: bytes
 
     @property
@@ -98,7 +98,7 @@ class InstrumentUnused(typing.NamedTuple):
         return "Unused instrument"
 
 
-class InstrumentInvalid(typing.NamedTuple):
+class InstrumentInvalidItem(typing.NamedTuple):
     kind: int
     data: bytes
 
@@ -107,25 +107,25 @@ class InstrumentInvalid(typing.NamedTuple):
         return "Invalid instrument"
 
 
-class Instrument(typing.NamedTuple):
+class InstrumentItem(typing.NamedTuple):
 
     @staticmethod
-    def parse(data: bytes) -> InstrumentSample | InstrumentPsg | InstrumentKeySplit | InstrumentEveryKeySplit | InstrumentUnused | InstrumentInvalid:
+    def parse(data: bytes) -> InstrumentSampleItem | InstrumentPsgItem | InstrumentKeySplitItem | InstrumentEveryKeySplitItem | InstrumentUnusedItem | InstrumentInvalidItem:
         if data == UNUSED_INSTRUMENT:
-            return InstrumentUnused(data)
+            return InstrumentUnusedItem(data)
         kind = data[0]
         if kind in (0x00, 0x08,  0x10, 0x20):
-            return InstrumentSample.parse(data)
+            return InstrumentSampleItem.parse(data)
         if kind == (0x01, 0x02, 0x03, 0x04, 0x09, 0x0A, 0x0B, 0x0C):
-            return InstrumentPsg.parse(data)
+            return InstrumentPsgItem.parse(data)
         if kind == 0x40:
-            return InstrumentKeySplit.parse(data)
+            return InstrumentKeySplitItem.parse(data)
         if kind == 0x80:
-            return InstrumentEveryKeySplit.parse(data)
-        return InstrumentInvalid(kind, data[1:])
+            return InstrumentEveryKeySplitItem.parse(data)
+        return InstrumentInvalidItem(kind, data[1:])
 
 
-class Sample(typing.NamedTuple):
+class SampleHeader(typing.NamedTuple):
     zero1: int
     zero2: int
     zero3: int
@@ -146,6 +146,6 @@ class Sample(typing.NamedTuple):
         return self.flags & 0x40 != 0
 
     @staticmethod
-    def parse(data: bytes) -> "Sample":
+    def parse(data: bytes) -> "SampleHeader":
         res = struct.unpack("<BBBBLLL", data)
-        return Sample._make(res)
+        return SampleHeader._make(res)
