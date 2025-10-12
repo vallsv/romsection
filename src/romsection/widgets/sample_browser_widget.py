@@ -120,6 +120,8 @@ class SampleBrowserWave(Qt.QWidget):
 
 class SampleBrowserWidget(Qt.QFrame):
 
+    positionChanged = Qt.pyqtSignal(int)
+
     playbackChanged = Qt.pyqtSignal(bool)
 
     def __init__(self, parent: Qt.QWidget | None = None):
@@ -269,3 +271,4 @@ class SampleBrowserWidget(Qt.QFrame):
         self.__wave.update()
         with blockSignals(self.__scroll):
             self.__scroll.setValue(position)
+        self.positionChanged.emit(position)
