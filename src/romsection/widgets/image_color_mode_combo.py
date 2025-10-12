@@ -4,6 +4,9 @@ from ..gba_file import ImageColorMode
 
 
 class ImageColorModeCombo(Qt.QComboBox):
+
+    valueChanged = Qt.pyqtSignal(object)
+
     def __init__(self, parent: Qt.QWidget | None = None):
         Qt.QComboBox.__init__(self, parent)
         self.addItem("Indexed 256 colors", ImageColorMode.INDEXED_8BIT)
@@ -11,6 +14,11 @@ class ImageColorModeCombo(Qt.QComboBox):
         self.addItem("ARGB 1+5+5+5 bits", ImageColorMode.A1RGB15)
         self.addItem("RGB 5+5+5 bits", ImageColorMode.RGB15)
         self.setCurrentIndex(0)
+        self.currentIndexChanged.connect(self.__onCurrentIndexChanged)
+
+    def __onCurrentIndexChanged(self):
+        value = self.selectedValue()
+        self.valueChanged.emit(value)
 
     def selectedValue(self) -> ImageColorMode | None:
         index = self.currentIndex()
