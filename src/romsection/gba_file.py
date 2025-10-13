@@ -41,6 +41,14 @@ class GBAFile:
             raise ValueError(f"Multiple memory map found at 0x{byte_offset:08X}")
         return mem[0]
 
+    def memory_map_containing_offset(self, byte_offset: int):
+        mem = [m for m in self.offsets if m.byte_offset <= byte_offset < m.byte_end]
+        if len(mem) == 0:
+            raise ValueError(f"No memory map found at 0x{byte_offset:08X}")
+        if len(mem) > 1:
+            raise ValueError(f"Multiple memory map found at 0x{byte_offset:08X}")
+        return mem[0]
+
     def palettes(self) -> list[MemoryMap]:
         return [m for m in self.offsets if m.data_type == DataType.PALETTE]
 
