@@ -36,6 +36,10 @@ class SearchSappyTag(Behavior):
 
 
 class SplitSappySample(Behavior):
+
+    def setOffset(self, offset: int):
+        self.__offset = offset
+
     def run(self):
         context = self.context()
         rom = context.rom()
@@ -47,7 +51,7 @@ class SplitSappySample(Behavior):
         if mem.byte_codec not in (None, ByteCodec.RAW):
             return
 
-        address = context._hexa.selectedAddress()
+        address = self.__offset
         if address is None:
             return
 

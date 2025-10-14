@@ -435,6 +435,7 @@ class DataBrowser(Qt.QWidget):
         split = Qt.QAction(menu)
         split.setText("Split memory map as sappy sample")
         split.setIcon(Qt.QIcon("icons:sample.png"))
+        self.__splitSappySample.setOffset(offset)
         split.triggered.connect(self.__splitSappySample.run)
         menu.addAction(split)
 
