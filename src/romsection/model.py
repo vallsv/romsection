@@ -56,6 +56,34 @@ class DataType(enum.Enum):
     See https://www.romhacking.net/documents/462/
     """
 
+    MUSIC_SONG_TABLE_SAPPY = DataTypeDesc(group=DataTypeGroup.MUSIC)
+    """
+    Music song pointer table as stored by sappy
+
+    See https://www.romhacking.net/documents/462/
+    """
+
+    MUSIC_SONG_HEADER_SAPPY = DataTypeDesc(group=DataTypeGroup.MUSIC)
+    """
+    Music song pointer table as stored by sappy
+
+    See https://www.romhacking.net/documents/462/
+    """
+
+    MUSIC_TRACK_SAPPY = DataTypeDesc(group=DataTypeGroup.MUSIC)
+    """
+    Music song track as stored by sappy
+
+    See https://www.romhacking.net/documents/462/
+    """
+
+    MUSIC_KEY_SPLIT_TABLE_SAPPY = DataTypeDesc(group=DataTypeGroup.MUSIC)
+    """
+    Music key split table by sappy
+
+    See https://www.romhacking.net/documents/462/
+    """
+
     UNKNOWN = DataTypeDesc(group=DataTypeGroup.OTHER)
     """Memory map which is not yet identified."""
 

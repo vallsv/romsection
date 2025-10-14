@@ -15,6 +15,8 @@ ICONS = {
     DataType.PADDING: "icons:padding.png",
     DataType.UNKNOWN: "icons:unknown.png",
     DataType.GBA_ROM_HEADER: "icons:gba.png",
+    DataType.MUSIC_INSTRUMENT_SAPPY: "icons:instrument.png",
+    DataType.MUSIC_KEY_SPLIT_TABLE_SAPPY: "icons:instrument.png",
 }
 
 

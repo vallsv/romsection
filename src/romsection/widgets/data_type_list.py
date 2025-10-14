@@ -62,6 +62,30 @@ class DataTypeList(Qt.QListWidget):
         self.addItem(item)
 
         item = Qt.QListWidgetItem()
+        item.setText(f"Music song address (sappy)")
+        item.setData(Qt.Qt.UserRole, DataType.MUSIC_SONG_TABLE_SAPPY)
+        item.setIcon(ui_styles.getIcon(DataType.MUSIC_SONG_TABLE_SAPPY))
+        self.addItem(item)
+
+        item = Qt.QListWidgetItem()
+        item.setText(f"Music song header (sappy)")
+        item.setData(Qt.Qt.UserRole, DataType.MUSIC_SONG_HEADER_SAPPY)
+        item.setIcon(ui_styles.getIcon(DataType.MUSIC_SONG_HEADER_SAPPY))
+        self.addItem(item)
+
+        item = Qt.QListWidgetItem()
+        item.setText(f"Music song track (sappy)")
+        item.setData(Qt.Qt.UserRole, DataType.MUSIC_TRACK_SAPPY)
+        item.setIcon(ui_styles.getIcon(DataType.MUSIC_TRACK_SAPPY))
+        self.addItem(item)
+
+        item = Qt.QListWidgetItem()
+        item.setText(f"Music key split table (sappy)")
+        item.setData(Qt.Qt.UserRole, DataType.MUSIC_KEY_SPLIT_TABLE_SAPPY)
+        item.setIcon(ui_styles.getIcon(DataType.MUSIC_KEY_SPLIT_TABLE_SAPPY))
+        self.addItem(item)
+
+        item = Qt.QListWidgetItem()
         item.setText(f"Unknown")
         item.setData(Qt.Qt.UserRole, DataType.UNKNOWN)
         item.setIcon(ui_styles.getIcon(DataType.UNKNOWN))
