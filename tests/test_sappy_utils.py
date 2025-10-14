@@ -25,3 +25,9 @@ def test_parse_unterminated_arg():
     stream = io.BytesIO(b"\xb2\x5a")
     result = sappy_utils.Track.parse_size(stream)
     assert result is None
+
+
+def test_parse_psg():
+    data = b"\x04\x3c\x00\x00\x01\x00\x00\x00\x00\x00\x0f\x00"
+    result = sappy_utils.InstrumentItem.parse(data)
+    assert isinstance(result, sappy_utils.InstrumentPsgItem)

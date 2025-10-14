@@ -70,19 +70,19 @@ class InstrumentPsgItem(typing.NamedTuple):
     timelength: int
     sweep: int
     data: int
-    attack : int
-    decay : int
-    sustain : int
-    release : int
+    attack: int
+    decay: int
+    sustain: int
+    release: int
 
     @property
     def short_description(self):
         return "PSG instrument / sub-instrument"
 
     @staticmethod
-    def parse(data: bytes) -> "InstrumentSampleItem":
+    def parse(data: bytes) -> "InstrumentPsgItem":
         res = struct.unpack("<BBBBLBBBB", data)
-        return InstrumentSampleItem._make(res)
+        return InstrumentPsgItem._make(res)
 
     @staticmethod
     def parse_struct(data: bytes) -> list[tuple[int, bytes, str]]:
@@ -203,7 +203,7 @@ class InstrumentItem(typing.NamedTuple):
         kind = data[0]
         if kind in (0x00, 0x08,  0x10, 0x20):
             return InstrumentSampleItem.parse(data)
-        if kind == (0x01, 0x02, 0x03, 0x04, 0x09, 0x0A, 0x0B, 0x0C):
+        if kind in (0x01, 0x02, 0x03, 0x04, 0x09, 0x0A, 0x0B, 0x0C):
             return InstrumentPsgItem.parse(data)
         if kind == 0x40:
             return InstrumentKeySplitItem.parse(data)
@@ -218,7 +218,7 @@ class InstrumentItem(typing.NamedTuple):
         kind = data[0]
         if kind in (0x00, 0x08,  0x10, 0x20):
             return InstrumentSampleItem.parse_struct(data)
-        if kind == (0x01, 0x02, 0x03, 0x04, 0x09, 0x0A, 0x0B, 0x0C):
+        if kind in (0x01, 0x02, 0x03, 0x04, 0x09, 0x0A, 0x0B, 0x0C):
             return InstrumentPsgItem.parse_struct(data)
         if kind == 0x40:
             return InstrumentKeySplitItem.parse_struct(data)
