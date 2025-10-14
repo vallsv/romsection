@@ -254,11 +254,6 @@ class HexaArrayView(Qt.QTableView):
         header = self.horizontalHeader()
         header.setDefaultSectionSize(30)
         header.setStretchLastSection(True)
-        model = self.model()
-        itemSize = model.itemSize()
-        for i in range(itemSize):
-            header.setSectionResizeMode(i, Qt.QHeaderView.Fixed)
-        header.setSectionResizeMode(itemSize, Qt.QHeaderView.Stretch)
 
     def selectedAddress(self) -> int | None:
         """Return the selected address"""
