@@ -11,20 +11,17 @@ TRACK = b"\xbe\x5a\xbc\x00\xbb\x4b\xbd\x03\xbf\x40\xc1\x12\xc0\x40\xd4\x45\
 
 def test_parse_track():
     stream = io.BytesIO(TRACK)
-    result = sappy_utils.Track.parse_stream(stream)
-    assert result.length == 76
-    assert result.terminated
+    result = sappy_utils.Track.parse_size(stream)
+    assert result == 76
 
 
 def test_parse_unterminated():
     stream = io.BytesIO(b"\xbe\x5a")
-    result = sappy_utils.Track.parse_stream(stream)
-    assert result.length == 2
-    assert not result.terminated
+    result = sappy_utils.Track.parse_size(stream)
+    assert result is None
 
 
 def test_parse_unterminated_arg():
     stream = io.BytesIO(b"\xb2\x5a")
-    result = sappy_utils.Track.parse_stream(stream)
-    assert result.length == 2
-    assert not result.terminated
+    result = sappy_utils.Track.parse_size(stream)
+    assert result is None
