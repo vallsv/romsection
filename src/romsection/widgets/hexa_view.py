@@ -253,3 +253,18 @@ class HexaView(Qt.QTableView):
         model = self.model()
         index = model.indexFromAddress(address)
         selectionModel.select(index, Qt.QItemSelectionModel.ClearAndSelect)
+
+    def setAddressSelection(self, selection: tuple[int, int] | None):
+        # FIXME: Implement a full selection
+        if selection is None:
+            self.selectAddress(None)
+        else:
+            size = selection[1] - selection[0]
+            if size == 1:
+                address = selection[0]
+                self.selectAddress(address)
+                model = self.model()
+                index = model.indexFromAddress(address)
+                self.scrollTo(index)
+            else:
+                self.selectAddress(None)

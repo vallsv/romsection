@@ -92,6 +92,7 @@ class PixelBrowserView(Qt.QWidget):
         self.__zoom: int = 8
         self.__selectionFrom: int = -1
         self.__selectionTo: int = -1
+        self.__inSelection = False
 
     def paintEvent(self, event: Qt.QPaintEvent):
         painter = Qt.QPainter(self)
@@ -137,6 +138,20 @@ class PixelBrowserView(Qt.QWidget):
             painter.drawPath(path)
 
         painter.restore()
+
+    def setSelection(self, selection: tuple[int, int] | None):
+        if self.__inSelection:
+            # In the mouse selection interaction
+            # Cancel the request from outside
+            return
+        if selection is None:
+            selection = (-1, -1)
+        if selection == (self.__selectionFrom, self.__selectionTo):
+            return
+        self.__selectionFrom, self.__selectionTo = selection
+        bpe = byte_per_element(self.__colorMode)
+        self.__selectionTo -= bpe
+        self.update()
 
     def selection(self) -> tuple[int, int] | None:
         """
@@ -546,6 +561,7 @@ class PixelBrowserView(Qt.QWidget):
             pos = self._positionFromPixel(event.pos())
             self.__selectionFrom = pos
             self.__selectionTo = -1
+            self.__inSelection = True
             self.update()
             self.selectionChanged.emit(self.selection())
 
@@ -560,12 +576,15 @@ class PixelBrowserView(Qt.QWidget):
         if event.button() == Qt.Qt.LeftButton:
             self.releaseMouse()
             if self.__selectionTo == -1:
-                # The mouse habe not moved, it a way to deselect
+                # The mouse have not moved, that's a way to deselect
                 return
             pos = self._positionFromPixel(event.pos())
             self.__selectionTo = pos
+            self.__inSelection = False
             self.update()
             self.selectionChanged.emit(self.selection())
+        else:
+            self.__inSelection = False
 
     def wheelEvent(self, event: Qt.QWheelEvent):
         deltaY = event.angleDelta().y()
@@ -627,6 +646,9 @@ class PixelBrowserWidget(Qt.QFrame):
             The first is included, the second is excluded.
         """
         return self.__view.selection()
+
+    def setSelection(self, selection: tuple[int, int] | None):
+        self.__view.setSelection(selection)
 
     def zoom(self) -> int:
         return self.__view.zoom()

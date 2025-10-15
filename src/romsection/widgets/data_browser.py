@@ -224,6 +224,20 @@ class DataBrowser(Qt.QWidget):
         self._updateSelection(self.selection())
 
     def __onSelectionChanged(self, selection: tuple[int, int] | None):
+        # Assume each widget have the same address origin
+        with blockSignals(self.__wave):
+            self.__wave.setSelection(selection)
+        with blockSignals(self.__pixel):
+            self.__pixel.setSelection(selection)
+        with blockSignals(self.__hexa):
+            if selection is None:
+                address = None
+            else:
+                address = (
+                    self.__address + selection[0],
+                    self.__address + selection[1]
+                )
+            self.__hexa.setAddressSelection(address)
         self._updateSelection(self.selection())
 
     def _updateSelection(self, selection: tuple[int, int] | None):
@@ -231,15 +245,16 @@ class DataBrowser(Qt.QWidget):
             self.__selectionOffset.setText("No selection")
             self.__selectionSize.setText("")
         else:
-            s = self.__address + selection[0], self.__address + selection[1]
+            s = selection
             self.__selectionOffset.setText(f"{f_address(s[0])}...{f_address(s[1]-1)}")
             size = s[1] - s[0]
             self.__selectionSize.setText(f"{size}B")
 
     def selection(self) -> tuple[int, int] | None:
+        """Return the address selection"""
         selection = self.__pixel.selection()
         if selection is None:
-            return selection
+            return None
         return self.__address + selection[0], self.__address + selection[1]
 
     def __positionChanged(self, position: int):
