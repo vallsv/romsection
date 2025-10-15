@@ -227,6 +227,9 @@ class InstrumentItem(typing.NamedTuple):
         return InstrumentInvalidItem.parse_struct(data)
 
 
+SAMPLE_HEADER_SIZE = 16
+
+
 class SampleHeader(typing.NamedTuple):
     zero1: int
     zero2: int

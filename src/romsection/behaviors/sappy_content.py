@@ -570,3 +570,127 @@ class SearchSappyKeySplitTableFromInstrumentTable(Behavior):
                 "Error",
                 f"Some items can't be extracted because it was not possible to parse them. See {msg}"
             )
+
+
+class SearchSappySampleFromInstrumentTable(Behavior):
+    """
+    Search and extract SongHeader from SongAddress table.
+    """
+    def run(self):
+        context = self.context()
+        rom = context.rom()
+        mem = context._memView.selectedMemoryMap()
+        if mem is None:
+            Qt.QMessageBox.information(
+                context,
+                "Error",
+                "No selected memory map. A single Sappy song table have to be selected."
+            )
+            return
+
+        if mem.data_type != DataType.MUSIC_INSTRUMENT_SAPPY:
+            Qt.QMessageBox.information(
+                context,
+                "Error",
+                "The selected memory map is not a Sappy instrument table"
+            )
+            return
+
+        data = rom.extract_data(mem).tobytes()
+        sampleAddress = []
+        item_size = sappy_utils.INSTRUMENT_TABLE_ITEM_SIZE
+        while data:
+            if len(data) < item_size:
+                break
+            itemData, data = data[:item_size], data[item_size:]
+            item = sappy_utils.InstrumentItem.parse(itemData)
+            if not isinstance(item, sappy_utils.InstrumentSampleItem):
+                continue
+            sampleAddress.append(item.sample_address)
+
+        # Drop the dups
+        sampleAddress = set(sampleAddress)
+        sampleAddress = sorted([d - 0x8000000 for d in sampleAddress])
+
+        mems = {}
+        already_extracted = 0
+        to_be_extracted = 0
+        cant_be_extracted = []
+        for offset in sampleAddress:
+            mem = rom.memory_map_containing_offset(offset)
+            if mem.data_type == DataType.SAMPLE_SAPPY and mem.byte_offset == offset:
+                already_extracted += 1
+                continue
+            if mem.data_type != DataType.UNKNOWN or mem.byte_codec not in [None, ByteCodec.RAW]:
+                cant_be_extracted.append(offset)
+                continue
+            to_be_extracted += 1
+            mems.setdefault(mem.byte_offset, []).append(offset)
+
+        if to_be_extracted == 0:
+            if len(cant_be_extracted) == 0:
+                Qt.QMessageBox.information(
+                    context,
+                    "Result",
+                    f"Every item found ({already_extracted}) was already extracted. Nothing was modified."
+                )
+            else:
+                msg = message_from_offsets(cant_be_extracted)
+                Qt.QMessageBox.information(
+                    context,
+                    "Error",
+                    f"Some items ({msg}) can't be extracted. Nothing was modified."
+                )
+            return
+
+        memoryMapList = context.memoryMapList()
+        invalid_header = []
+        was_extracted = 0
+
+        headerSize = sappy_utils.SAMPLE_HEADER_SIZE
+        for _, memOffsets in mems.items():
+            for memOffset in memOffsets:
+                mem = rom.memory_map_containing_offset(memOffset)
+                data = rom.extract_raw(mem)
+                relAddress = memOffset - mem.byte_offset
+                stream = io.BytesIO(data)
+                stream.seek(relAddress, os.SEEK_SET)
+                headerData = stream.read(headerSize)
+                header = sappy_utils.SampleHeader.parse(headerData)
+                header = sappy_utils.SampleHeader.parse(headerData)
+                if not header.is_valid():
+                    invalid_header.append(memOffset)
+                    continue
+
+                newMem = MemoryMap(
+                    byte_offset=memOffset,
+                    byte_length=16 + header.size + 1,  # Sounds like +1 is mandatory
+                    byte_codec=ByteCodec.RAW,
+                    data_type=DataType.SAMPLE_SAPPY,
+                )
+
+                splitMemoryMap(memoryMapList, mem, newMem)
+                was_extracted += 1
+
+        if was_extracted:
+            Qt.QMessageBox.information(
+                context,
+                "Result",
+                f"Some items ({was_extracted}) was extracted."
+            )
+
+        if cant_be_extracted:
+            msg = message_from_offsets(cant_be_extracted)
+            Qt.QMessageBox.information(
+                context,
+                "Error",
+                f"Some items can't be extracted because of the memory map description. See {msg}"
+            )
+
+        if invalid_header:
+            msg = message_from_offsets(invalid_header)
+            Qt.QMessageBox.information(
+                context,
+                "Error",
+                f"Some items can't be extracted because it was not possible to parse them. See {msg}"
+            )

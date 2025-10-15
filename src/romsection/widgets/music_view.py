@@ -80,6 +80,8 @@ class MusicView(Qt.QWidget):
         self.__searchSappyTrackers.setContext(context)
         self.__searchSappyKeySplitTable = sappy_content.SearchSappyKeySplitTableFromInstrumentTable()
         self.__searchSappyKeySplitTable.setContext(context)
+        self.__searchSappySample = sappy_content.SearchSappySampleFromInstrumentTable()
+        self.__searchSappySample.setContext(context)
 
         action = Qt.QAction(self)
         action.triggered.connect(self.__searchSappySongHeaders.run)
@@ -100,6 +102,13 @@ class MusicView(Qt.QWidget):
         action.setText("Extract sappy key split table")
         action.setToolTip("Extract referenced key split table from instrument table")
         action.setIcon(Qt.QIcon("icons:music.png"))
+        self.__toolbar.addAction(action)
+
+        action = Qt.QAction(self)
+        action.triggered.connect(self.__searchSappySample.run)
+        action.setText("Extract sappy samples")
+        action.setToolTip("Extract referenced samples from instrument table")
+        action.setIcon(Qt.QIcon("icons:sample.png"))
         self.__toolbar.addAction(action)
 
         self.__table = HexaArrayView(self)
