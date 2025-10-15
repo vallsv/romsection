@@ -22,7 +22,6 @@ class SampleView(Qt.QWidget):
         self.__wave = SampleBrowserWidget(self)
         self.__statusbar = Qt.QStatusBar(self)
 
-
         self.__playButton = Qt.QPushButton(self.__toolbar)
         self.__playButton.clicked.connect(self._playback)
         self.__playButton.setToolTip("Playback visible data only")
