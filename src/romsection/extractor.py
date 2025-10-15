@@ -265,6 +265,7 @@ class Extractor(Qt.QWidget):
         except Exception:
             raise
         else:
+            self._filename = None
             header = MemoryMap(
                 byte_offset=0,
                 byte_codec=ByteCodec.RAW,
