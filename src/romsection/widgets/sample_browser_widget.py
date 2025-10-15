@@ -282,7 +282,6 @@ class SampleBrowserWidget(Qt.QFrame):
         self.__wave.update()
 
     def _updateScroll(self):
-        self.__scroll.setValue(0)
         pageSize = self.__wave.pageSize()
         self.__scroll.setRange(0, self.__len - pageSize)
 
