@@ -152,6 +152,7 @@ class DataBrowser(Qt.QWidget):
         self.__pixel.customContextMenuRequested.connect(self._showPixelContextMenu)
 
         self.__wave = SampleBrowserWidget(self)
+        self.__wave.setNbSamplePerPixels(8)
         self.__wave.positionChanged.connect(self.__positionChanged)
 
         self.__hexa = HexaView(self)
