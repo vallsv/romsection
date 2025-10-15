@@ -83,33 +83,49 @@ class MusicView(Qt.QWidget):
         self.__searchSappySample = sappy_content.SearchSappySampleFromInstrumentTable()
         self.__searchSappySample.setContext(context)
 
+        spacer = Qt.QWidget(self.__toolbar)
+        spacer.setSizePolicy(Qt.QSizePolicy.Expanding, Qt.QSizePolicy.Expanding)
+        self.__toolbar.addWidget(spacer)
+
+        toolButton = Qt.QToolButton(self)
+        toolButton.setPopupMode(Qt.QToolButton.InstantPopup)
+        toolButton.setIcon(Qt.QIcon("icons:tool.png"))
+        self.__toolbar.addWidget(toolButton)
+
+        toolMenu = Qt.QMenu(toolButton)
+        toolButton.setMenu(toolMenu)
+
+        toolMenu.addSection("From sappy song table")
+
         action = Qt.QAction(self)
         action.triggered.connect(self.__searchSappySongHeaders.run)
-        action.setText("Extract sappy song headers")
+        action.setText("Extract song headers")
         action.setToolTip("Extract referenced sappy song headers from song table")
         action.setIcon(Qt.QIcon("icons:music.png"))
-        self.__toolbar.addAction(action)
+        toolMenu.addAction(action)
 
         action = Qt.QAction(self)
         action.triggered.connect(self.__searchSappyTrackers.run)
-        action.setText("Extract sappy tracks")
+        action.setText("Extract tracks")
         action.setToolTip("Extract referenced tracks from song table")
         action.setIcon(Qt.QIcon("icons:music.png"))
-        self.__toolbar.addAction(action)
+        toolMenu.addAction(action)
+
+        toolMenu.addSection("From sappy instrument table")
 
         action = Qt.QAction(self)
         action.triggered.connect(self.__searchSappyKeySplitTable.run)
-        action.setText("Extract sappy key split table")
+        action.setText("Extract key split table")
         action.setToolTip("Extract referenced key split table from instrument table")
-        action.setIcon(Qt.QIcon("icons:music.png"))
-        self.__toolbar.addAction(action)
+        action.setIcon(Qt.QIcon("icons:instrument.png"))
+        toolMenu.addAction(action)
 
         action = Qt.QAction(self)
         action.triggered.connect(self.__searchSappySample.run)
-        action.setText("Extract sappy samples")
+        action.setText("Extract samples")
         action.setToolTip("Extract referenced samples from instrument table")
         action.setIcon(Qt.QIcon("icons:sample.png"))
-        self.__toolbar.addAction(action)
+        toolMenu.addAction(action)
 
         self.__table = HexaArrayView(self)
 
