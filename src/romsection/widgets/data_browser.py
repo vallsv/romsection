@@ -381,7 +381,7 @@ class DataBrowser(Qt.QWidget):
         if mem is None:
             return
 
-        selection = self.__pixel.selection()
+        selection = self.selection()
         if selection is None:
             return
 
