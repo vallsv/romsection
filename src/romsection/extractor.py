@@ -30,7 +30,7 @@ from .widgets.palette_size_list import PaletteSizeList
 from .widgets.tile_set_view import TileSetView
 from .widgets.music_browser import MusicBrowser
 from .widgets.sample_view import SampleView
-from .widgets.music_view import MusicView
+from .widgets.data_view import DataView
 from .widgets.memory_map_filter_drop import MemoryMapFilterDrop
 from .widgets.memory_map_proxy_model import MemoryMapFilter
 from .gba_file import GBAFile, ByteCodec, MemoryMap, ImageColorMode, ImagePixelOrder, DataType
@@ -199,7 +199,7 @@ class Extractor(Qt.QWidget):
         self._dataBrowser = DataBrowser(self)
         self._musicBrowser = MusicBrowser(self)
         self._sampleView = SampleView(self)
-        self._musicView = MusicView(self)
+        self._dataView = DataView(self)
         self._hexaView = HexaView(self)
 
         self._view = Qt.QStackedLayout()
@@ -212,7 +212,7 @@ class Extractor(Qt.QWidget):
         self._view.addWidget(self._dataBrowser)
         self._view.addWidget(self._musicBrowser)
         self._view.addWidget(self._sampleView)
-        self._view.addWidget(self._musicView)
+        self._view.addWidget(self._dataView)
 
         leftLayout = Qt.QVBoxLayout()
         leftLayout.addWidget(toolbar)
@@ -325,7 +325,7 @@ class Extractor(Qt.QWidget):
         self._rom = rom
         self._paletteList.setRom(rom)
         self._sampleView.setRom(rom)
-        self._musicView.setRom(rom)
+        self._dataView.setRom(rom)
         self._dataBrowser.setRom(rom)
         if rom is None:
             self._memoryMapList.setObjectList([])
@@ -883,8 +883,8 @@ class Extractor(Qt.QWidget):
                 self._sampleView.setMemoryMap(mem)
                 self._view.setCurrentWidget(self._sampleView)
             elif data_type_name.startswith("MUSIC_"):
-                self._musicView.setMemoryMap(mem)
-                self._view.setCurrentWidget(self._musicView)
+                self._dataView.setMemoryMap(mem)
+                self._view.setCurrentWidget(self._dataView)
             elif mem.data_type == DataType.UNKNOWN:
                 self._browseMemoryMapData()
             elif mem.data_type == DataType.TILE_SET:

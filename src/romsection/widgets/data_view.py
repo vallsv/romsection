@@ -6,6 +6,7 @@ from PyQt5 import Qt
 
 from ..model import MemoryMap, DataType
 from .. import sappy_utils
+from .. import gba_utils
 from ..gba_file import GBAFile
 from .hexa_view import HexaView
 from .sappy_instrument_bank import SappyInstrumentBank
@@ -21,40 +22,52 @@ class Description(typing.NamedTuple):
     item_size: int | None
 
 
-class MusicView(Qt.QWidget):
+DESCRIPTION = {
+    DataType.MUSIC_INSTRUMENT_SAPPY: Description(
+        is_array=True,
+        item_struct=sappy_utils.InstrumentItem,
+        struct=None,
+        item_size=12,
+    ),
+    DataType.MUSIC_SONG_TABLE_SAPPY: Description(
+        is_array=True,
+        item_struct=sappy_utils.SongTableItem,
+        struct=None,
+        item_size=8,
+    ),
+    DataType.MUSIC_SONG_HEADER_SAPPY: Description(
+        is_array=False,
+        item_struct=None,
+        struct=sappy_utils.SongHeader,
+        item_size=None,
+    ),
+    DataType.MUSIC_TRACK_SAPPY: Description(
+        is_array=False,
+        item_struct=None,
+        struct=sappy_utils.Track,
+        item_size=None,
+    ),
+    DataType.MUSIC_KEY_SPLIT_TABLE_SAPPY: Description(
+        is_array=True,
+        item_struct=sappy_utils.SongTableItem,
+        struct=None,
+        item_size=1,
+    ),
+    DataType.GBA_ROM_HEADER: Description(
+        is_array=False,
+        item_struct=None,
+        struct=gba_utils.GbaHeader,
+        item_size=None,
+    ),
+}
 
-    DESCRIPTION = {
-        DataType.MUSIC_INSTRUMENT_SAPPY: Description(
-            is_array=True,
-            item_struct=sappy_utils.InstrumentItem,
-            struct=None,
-            item_size=12,
-        ),
-        DataType.MUSIC_SONG_TABLE_SAPPY: Description(
-            is_array=True,
-            item_struct=sappy_utils.SongTableItem,
-            struct=None,
-            item_size=8,
-        ),
-        DataType.MUSIC_SONG_HEADER_SAPPY: Description(
-            is_array=False,
-            item_struct=None,
-            struct=sappy_utils.SongHeader,
-            item_size=None,
-        ),
-        DataType.MUSIC_TRACK_SAPPY: Description(
-            is_array=False,
-            item_struct=None,
-            struct=sappy_utils.Track,
-            item_size=None,
-        ),
-        DataType.MUSIC_KEY_SPLIT_TABLE_SAPPY: Description(
-            is_array=True,
-            item_struct=sappy_utils.SongTableItem,
-            struct=None,
-            item_size=1,
-        ),
-    }
+
+class DataView(Qt.QWidget):
+    """
+    Display most of the known data with the best we can have.
+
+    Actually in mostly focus on hexa view.
+    """
 
     def __init__(self, parent: Qt.QWidget | None = None):
         Qt.QWidget.__init__(self, parent=parent)
@@ -146,7 +159,7 @@ class MusicView(Qt.QWidget):
             return
         address = self.__table.selectedItemAddress()
         dataType = self.__memoryMap.data_type if self.__memoryMap else None
-        desc = self.DESCRIPTION.get(dataType)
+        desc = DESCRIPTION.get(dataType)
         if desc is None:
             self.__hexaStruct.setStruct(None)
             return
@@ -191,7 +204,7 @@ class MusicView(Qt.QWidget):
         model = self.__table.model()
         dataType = self.__memoryMap.data_type if self.__memoryMap else None
 
-        desc = self.DESCRIPTION.get(dataType)
+        desc = DESCRIPTION.get(dataType)
         if desc is None:
             model.setItemSize(16)
             model.setDescriptionMethod(None)
