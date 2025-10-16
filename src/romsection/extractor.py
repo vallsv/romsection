@@ -23,7 +23,6 @@ from .widgets.data_type_list import DataTypeList
 from .widgets.palette_filter_proxy_model import PaletteFilterProxyModel
 from .widgets.combo_box import ComboBox
 from .widgets.palette_combo_box import PaletteComboBox
-from .widgets.gba_rom_header_view import GbaRomHeaderView
 from .widgets.sprite_view import SpriteView
 from .widgets.hexa_view import HexaView
 from .widgets.palette_size_list import PaletteSizeList
@@ -204,8 +203,6 @@ class Extractor(Qt.QWidget):
 
         self._tileSetView = TileSetView(self)
 
-        self._header = GbaRomHeaderView(self)
-
         self._dataBrowser = DataBrowser(self)
         self._musicBrowser = MusicBrowser(self)
         self._sampleView = SampleView(self)
@@ -217,7 +214,6 @@ class Extractor(Qt.QWidget):
         self._view.addWidget(self._image)
         self._view.addWidget(self._tileSetView)
         self._view.addWidget(self._error)
-        self._view.addWidget(self._header)
         self._view.addWidget(self._hexaView)
         self._view.addWidget(self._dataBrowser)
         self._view.addWidget(self._musicBrowser)
