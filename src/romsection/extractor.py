@@ -41,6 +41,7 @@ from .behaviors import search_lz77
 from .behaviors import sappy_content
 from .behaviors import unknown_content
 from .behaviors.info import InfoDialog
+from . import gba_utils
 
 
 def uniqueValueElseNone(data: list[typing.Any]):
@@ -283,7 +284,7 @@ class Extractor(Qt.QWidget):
             header = MemoryMap(
                 byte_offset=0,
                 byte_codec=ByteCodec.RAW,
-                byte_length=192,
+                byte_length=gba_utils.EXTANDED_GBA_HEADER_SIZE,
                 data_type=DataType.GBA_ROM_HEADER,
             )
             other = MemoryMap(
@@ -888,9 +889,8 @@ class Extractor(Qt.QWidget):
         try:
             data_type_name = "" if mem.data_type is None else mem.data_type.name
             if mem.data_type == DataType.GBA_ROM_HEADER:
-                data = self._rom.extract_raw(mem)
-                self._header.setMemory(data)
-                self._view.setCurrentWidget(self._header)
+                self._dataView.setMemoryMap(mem)
+                self._view.setCurrentWidget(self._dataView)
             elif mem.data_type == DataType.PADDING:
                 self._showMemoryMapRawAsHexa()
             elif data_type_name.startswith("SAMPLE_"):
