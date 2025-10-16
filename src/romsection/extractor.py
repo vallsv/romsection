@@ -40,6 +40,7 @@ from .behaviors import file_dialog
 from .behaviors import search_lz77
 from .behaviors import sappy_content
 from .behaviors import unknown_content
+from .behaviors.info import InfoDialog
 
 
 def uniqueValueElseNone(data: list[typing.Any]):
@@ -82,6 +83,14 @@ class Extractor(Qt.QWidget):
         saveAsAction.setText("Save the ROM dissection into another file")
         saveAsAction.setIcon(Qt.QIcon("icons:save-as.png"))
         toolbar.addAction(saveAsAction)
+
+        toolbar.addSeparator()
+
+        infoAction = Qt.QAction(self)
+        infoAction.triggered.connect(self._showInfo)
+        infoAction.setText("Display info")
+        infoAction.setIcon(Qt.QIcon("icons:info.png"))
+        toolbar.addAction(infoAction)
 
         toolbar.addSeparator()
 
@@ -239,6 +248,11 @@ class Extractor(Qt.QWidget):
         self._memoryMapFilter.filterChanged.connect(self.__setMemoryMapFilter)
 
         self.setRom(None)
+
+    def _showInfo(self):
+        dialog = InfoDialog(self)
+        dialog.setContext(self)
+        dialog.exec()
 
     def __setMemoryMapFilter(self, filter: MemoryMapFilter | None):
         mem = self._memView.selectedMemoryMap()
