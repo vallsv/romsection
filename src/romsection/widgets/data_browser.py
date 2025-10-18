@@ -448,11 +448,18 @@ class DataBrowser(Qt.QWidget):
         split.triggered.connect(self._splitMemoryMap)
         menu.addAction(split)
 
-        split = Qt.QAction(menu)
-        split.setText("Split memory map as sappy sample")
-        split.setIcon(Qt.QIcon("icons:sample.png"))
         self.__splitSappySample.setOffset(offset)
+
+        split = Qt.QAction(menu)
+        split.setText("Extract as sappy sample")
+        split.setIcon(Qt.QIcon("icons:sample.png"))
         split.triggered.connect(self.__splitSappySample.run)
+        menu.addAction(split)
+
+        split = Qt.QAction(menu)
+        split.setText("Extract as sappy sample +1 byte")
+        split.setIcon(Qt.QIcon("icons:sample.png"))
+        split.triggered.connect(self.__splitSappySample.runPlusOne)
         menu.addAction(split)
 
         menu.exec(globalPos)
