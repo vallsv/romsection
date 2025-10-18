@@ -329,6 +329,9 @@ class GBAFile:
             except Exception:
                 logging.warning("Error while processing RGB data from palette", exc_info=True)
                 pass
+        else:
+            if mem.image_color_mode == ImageColorMode.INDEXED_4BIT:
+                data *= 16
 
         return data
 
