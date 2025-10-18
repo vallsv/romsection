@@ -49,7 +49,7 @@ DESCRIPTION = {
     ),
     DataType.MUSIC_KEY_SPLIT_TABLE_SAPPY: Description(
         is_array=True,
-        item_struct=sappy_utils.SongTableItem,
+        item_struct=None,
         struct=None,
         item_size=1,
     ),
