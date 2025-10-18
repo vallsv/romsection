@@ -105,14 +105,16 @@ class HexaTableModel(Qt.QAbstractTableModel):
 
         elif role == Qt.Qt.BackgroundRole:
             pos = (row << 4) + column
-            if column == 0x10 or (pos < self.__padding or pos >= self.__length):
+            if column == 0x10:
                 return self.__palette.color(Qt.QPalette.Disabled, Qt.QPalette.Window)
+            elif pos < self.__padding or pos >= self.__length:
+                return self.__palette.color(Qt.QPalette.Disabled, Qt.QPalette.ButtonText)
             else:
                 return None
 
         elif role == Qt.Qt.TextAlignmentRole:
             if column == 0x10:
-                return Qt.Qt.AlignLeft
+                return Qt.Qt.AlignLeft | Qt.Qt.AlignVCenter
             else:
                 return Qt.Qt.AlignCenter
 
@@ -138,10 +140,10 @@ class HexaTableModel(Qt.QAbstractTableModel):
             return self.__font
         elif role == Qt.Qt.TextAlignmentRole:
             if orientation == Qt.Qt.Vertical:
-                return Qt.Qt.AlignRight
+                return Qt.Qt.AlignRight | Qt.Qt.AlignVCenter
             if orientation == Qt.Qt.Horizontal:
                 if section == 0x10:
-                    return Qt.Qt.AlignLeft
+                    return Qt.Qt.AlignLeft | Qt.Qt.AlignVCenter
                 else:
                     return Qt.Qt.AlignCenter
         return None
@@ -251,3 +253,18 @@ class HexaView(Qt.QTableView):
         model = self.model()
         index = model.indexFromAddress(address)
         selectionModel.select(index, Qt.QItemSelectionModel.ClearAndSelect)
+
+    def setAddressSelection(self, selection: tuple[int, int] | None):
+        # FIXME: Implement a full selection
+        if selection is None:
+            self.selectAddress(None)
+        else:
+            size = selection[1] - selection[0]
+            if size == 1:
+                address = selection[0]
+                self.selectAddress(address)
+                model = self.model()
+                index = model.indexFromAddress(address)
+                self.scrollTo(index)
+            else:
+                self.selectAddress(None)

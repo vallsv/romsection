@@ -18,6 +18,13 @@ class SampleBrowserWave(Qt.QWidget):
     def __init__(self, parent: Qt.QWidget | None = None):
         Qt.QWidget.__init__(self, parent=parent)
         self.setSizePolicy(Qt.QSizePolicy.Expanding, Qt.QSizePolicy.Expanding)
+        self.__selection: tuple[int, int] | None = None
+
+    def setSelection(self, selection: tuple[int, int] | None):
+        if self.__selection == selection:
+            return
+        self.__selection = selection
+        self.update()
 
     def _getRange(self) -> tuple[int, int]:
         parent = self.parent()
@@ -106,6 +113,7 @@ class SampleBrowserWave(Qt.QWidget):
         self._paintAll(painter)
 
     def _paintAll(self, painter: Qt.QPainter):
+        parent = self.parent()
         painter.save()
 
         width = self.width()
@@ -115,10 +123,29 @@ class SampleBrowserWave(Qt.QWidget):
         for x, (vmin, vmax) in enumerate(zip(minArray, maxArray)):
             painter.drawLine(x, vmin, x, vmax)
 
+        if self.__selection is not None:
+            bytePos = parent.position()
+            byteLen = parent.memoryLength()
+            codec = parent.sampleCodec().value
+            sampleSize = codec.sample_size
+            bytePerPixels = sampleSize * parent.nbSamplePerPixels()
+            dataSize = self.width() * bytePerPixels
+
+            dataPos = parent.position()
+            pixelFrom = int(width * (self.__selection[0] - dataPos) / dataSize)
+            pixelTo = int(width * (self.__selection[1] - dataPos) / dataSize)
+
+            pen = Qt.QPen(Qt.QColor(0, 0, 255))
+            pen.setWidth(2)
+            painter.setPen(pen)
+            painter.drawRect(pixelFrom + 1, 1, pixelTo - pixelFrom - 2, height - 2)
+
         painter.restore()
 
 
 class SampleBrowserWidget(Qt.QFrame):
+
+    positionChanged = Qt.pyqtSignal(int)
 
     playbackChanged = Qt.pyqtSignal(bool)
 
@@ -150,6 +177,9 @@ class SampleBrowserWidget(Qt.QFrame):
 
         self.__scroll.valueChanged.connect(self.setPosition)
         self.__wave.pageSizeChanged.connect(self.__pageChanged)
+
+    def setSelection(self, selection: tuple[int, int] | None):
+        self.__wave.setSelection(selection)
 
     def __pageChanged(self, pageSize: int):
         self.__scroll.setPageStep(pageSize)
@@ -252,7 +282,6 @@ class SampleBrowserWidget(Qt.QFrame):
         self.__wave.update()
 
     def _updateScroll(self):
-        self.__scroll.setValue(0)
         pageSize = self.__wave.pageSize()
         self.__scroll.setRange(0, self.__len - pageSize)
 
@@ -269,3 +298,4 @@ class SampleBrowserWidget(Qt.QFrame):
         self.__wave.update()
         with blockSignals(self.__scroll):
             self.__scroll.setValue(position)
+        self.positionChanged.emit(position)

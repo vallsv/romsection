@@ -41,6 +41,14 @@ class GBAFile:
             raise ValueError(f"Multiple memory map found at 0x{byte_offset:08X}")
         return mem[0]
 
+    def memory_map_containing_offset(self, byte_offset: int):
+        mem = [m for m in self.offsets if m.byte_offset <= byte_offset < m.byte_end]
+        if len(mem) == 0:
+            raise ValueError(f"No memory map found at 0x{byte_offset:08X}")
+        if len(mem) > 1:
+            raise ValueError(f"Multiple memory map found at 0x{byte_offset:08X}")
+        return mem[0]
+
     def palettes(self) -> list[MemoryMap]:
         return [m for m in self.offsets if m.data_type == DataType.PALETTE]
 
@@ -146,6 +154,31 @@ class GBAFile:
             offset += 1
         return result
 
+    def search_for_bytes_in_data(self,
+        mem: MemoryMap,
+        data: bytes
+    ) -> list[int]:
+        """
+        Search for this `data` sequence of bytes in the ROM.
+
+        Return the found offsets.
+        """
+        decompressed = self.extract_data(mem).tobytes()
+        size = len(data)
+        f = io.BytesIO(decompressed)
+        offset = 0
+        result: list[int] = []
+        while offset < len(data):
+            f.seek(offset, os.SEEK_SET)
+            d = f.read(size)
+            if len(d) != size:
+                break
+            if d == data:
+                result.append(offset)
+            # FIXME: d can be used to skip even more steps
+            offset += 1
+        return result
+
     def extract_raw(self, mem: MemoryMap) -> bytes:
         f = self._f
         f.seek(mem.byte_offset, os.SEEK_SET)
@@ -158,6 +191,7 @@ class GBAFile:
         result = decompress_lz77(f)
         offset_end = f.tell()
         mem.byte_length = offset_end - mem.byte_offset
+        mem.byte_payload = len(result)
         return result
 
     def extract_data(self, mem: MemoryMap) -> numpy.ndarray:
@@ -295,6 +329,9 @@ class GBAFile:
             except Exception:
                 logging.warning("Error while processing RGB data from palette", exc_info=True)
                 pass
+        else:
+            if mem.image_color_mode == ImageColorMode.INDEXED_4BIT:
+                data *= 16
 
         return data
 
@@ -345,5 +382,9 @@ class GBAFile:
             except Exception:
                 logging.warning("Error while processing RGB data from palette", exc_info=True)
                 pass
+        else:
+            if mem.image_color_mode == ImageColorMode.INDEXED_4BIT:
+                # Better grey scale
+                data *= 16
 
         return data

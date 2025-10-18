@@ -2,17 +2,16 @@ from __future__ import annotations
 import io
 import lru
 from PyQt5 import Qt
+from typing import Callable
 
-from .. import sappy_utils
 
-
-class SappyInstrumentModel(Qt.QAbstractTableModel):
-    """Table of hexadecimal rendering of byteq data.
+class HexaTableModel(Qt.QAbstractTableModel):
+    """Table of hexadecimal rendering of byte data.
 
     Bytes are displayed one by one as a hexadecimal viewer.
 
-    The 16th first columns display bytes as hexadecimal, the last column
-    displays the same data as ASCII.
+    The first columns display bytes as hexadecimal, the last column
+    displays the same data as custom description.
     """
 
     AddressRole = Qt.Qt.UserRole
@@ -25,14 +24,20 @@ class SappyInstrumentModel(Qt.QAbstractTableModel):
         Qt.QAbstractTableModel.__init__(self, parent)
         self.__data: bytes | None = None
         self.__address: int = 0
-        self.__itemSize: int = 12
+        self.__itemSize: int = 16
         self.__length: int = 0
         self.__font = Qt.QFontDatabase.systemFont(Qt.QFontDatabase.FixedFont)
         self.__palette = Qt.QPalette()
         self.__description: lru.LRU[int, str] = lru.LRU(256)
+        self.__descriptionMeth: Callable[[int, bytes], str] | None = None
 
     def itemSize(self) -> int:
         return self.__itemSize
+
+    def setItemSize(self, itemSize: int):
+        self.beginResetModel()
+        self.__itemSize = itemSize
+        self.endResetModel()
 
     def rowCount(self, parent_idx=None):
         """Returns number of rows to be displayed in table"""
@@ -62,9 +67,19 @@ class SappyInstrumentModel(Qt.QAbstractTableModel):
         self.__description[row] = text
         return text
 
+    def setDescriptionMethod(self, meth: Callable[[int, bytes], str] | None):
+        self.beginResetModel()
+        self.__descriptionMeth = meth
+        self.__description.clear()
+        self.endResetModel()
+
     def _getDescription(self, row: int, data: bytes) -> str:
-        inst = sappy_utils.Instrument.parse(data)
-        return f"#{row + 1:03d} {inst.short_description}"
+        descriptionMeth = self.__descriptionMeth
+        if descriptionMeth is not None:
+            description = descriptionMeth(row, data)
+            return f"#{row + 1:03d} {description}"
+        else:
+            return f"#{row + 1:03d}"
 
     def data(self, index: Qt.QModelIndex, role=Qt.Qt.DisplayRole):
         """QAbstractTableModel method to access data values
@@ -108,7 +123,10 @@ class SappyInstrumentModel(Qt.QAbstractTableModel):
                     return ""
 
         elif role == Qt.Qt.FontRole:
-            return self.__font
+            if column < self.__itemSize:
+                return self.__font
+            else:
+                return None
 
         elif role == Qt.Qt.ForegroundRole:
             if column == self.__itemSize:
@@ -116,14 +134,16 @@ class SappyInstrumentModel(Qt.QAbstractTableModel):
 
         elif role == Qt.Qt.BackgroundRole:
             pos = (row * self.__itemSize) + column
-            if column == self.__itemSize or pos >= self.__length:
+            if column == self.__itemSize:
                 return self.__palette.color(Qt.QPalette.Disabled, Qt.QPalette.Window)
+            elif pos >= self.__length:
+                return self.__palette.color(Qt.QPalette.Disabled, Qt.QPalette.ButtonText)
             else:
                 return None
 
         elif role == Qt.Qt.TextAlignmentRole:
             if column == self.__itemSize:
-                return Qt.Qt.AlignLeft
+                return Qt.Qt.AlignLeft | Qt.Qt.AlignVCenter
             else:
                 return Qt.Qt.AlignCenter
 
@@ -146,13 +166,19 @@ class SappyInstrumentModel(Qt.QAbstractTableModel):
                 else:
                     return f"{section:02X}"
         elif role == Qt.Qt.FontRole:
-            return self.__font
+            if orientation == Qt.Qt.Vertical:
+                return self.__font
+            if orientation == Qt.Qt.Horizontal:
+                if section != self.__itemSize:
+                    return self.__font
+                else:
+                    return None
         elif role == Qt.Qt.TextAlignmentRole:
             if orientation == Qt.Qt.Vertical:
-                return Qt.Qt.AlignRight
+                return Qt.Qt.AlignRight | Qt.Qt.AlignVCenter
             if orientation == Qt.Qt.Horizontal:
                 if section == self.__itemSize:
-                    return Qt.Qt.AlignLeft
+                    return Qt.Qt.AlignLeft | Qt.Qt.AlignVCenter
                 else:
                     return Qt.Qt.AlignCenter
         return None
@@ -162,8 +188,8 @@ class SappyInstrumentModel(Qt.QAbstractTableModel):
         is editable or not.
         """
         column = index.column()
-        if column == 0x10:
-            return Qt.Qt.NoItemFlags
+        if column == self.__itemSize:
+            return Qt.QAbstractTableModel.flags(self, index)
         row = index.row()
         pos = (row * self.__itemSize) + column
         if pos >= self.__length:
@@ -190,16 +216,19 @@ class SappyInstrumentModel(Qt.QAbstractTableModel):
         return self.__data
 
 
-class SappyInstrumentTable(Qt.QTableView):
+class HexaArrayView(Qt.QTableView):
     """
-    TableView to show sappy instrument table.
+    TableView to show a 1D tablarray of binary data.
 
-    It customs the column size to provide a better layout.
+    The memory input is split into multiple items of the
+    same size.
+
+    A basic description can be assosiated.
     """
 
     def __init__(self, parent: Qt.QWidget | None = None):
         Qt.QTableView.__init__(self, parent)
-        model = SappyInstrumentModel(self)
+        model = HexaTableModel(self)
         self.setModel(model)
 
     def setPosition(self, pos: int):
@@ -225,11 +254,6 @@ class SappyInstrumentTable(Qt.QTableView):
         header = self.horizontalHeader()
         header.setDefaultSectionSize(30)
         header.setStretchLastSection(True)
-        model = self.model()
-        itemSize = model.itemSize()
-        for i in range(itemSize):
-            header.setSectionResizeMode(i, Qt.QHeaderView.Fixed)
-        header.setSectionResizeMode(itemSize, Qt.QHeaderView.Stretch)
 
     def selectedAddress(self) -> int | None:
         """Return the selected address"""
@@ -238,7 +262,7 @@ class SappyInstrumentTable(Qt.QTableView):
         if len(items) != 1:
             return None
         index = items[0]
-        return index.data(SappyInstrumentModel.AddressRole)
+        return index.data(HexaTableModel.AddressRole)
 
     def selectedItemAddress(self) -> int | None:
         """Return the selected address"""
@@ -247,7 +271,7 @@ class SappyInstrumentTable(Qt.QTableView):
         if len(items) != 1:
             return None
         index = items[0]
-        return index.data(SappyInstrumentModel.ItemAddressRole)
+        return index.data(HexaTableModel.ItemAddressRole)
 
     def selectedItemData(self) -> bytes | None:
         """Return the selected address"""
@@ -256,7 +280,7 @@ class SappyInstrumentTable(Qt.QTableView):
         if len(items) != 1:
             return None
         index = items[0]
-        return index.data(SappyInstrumentModel.ItemData)
+        return index.data(HexaTableModel.ItemData)
 
     def selectAddress(self, address: int | None):
         """Set the selected address"""

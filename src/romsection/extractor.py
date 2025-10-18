@@ -12,6 +12,7 @@ from PyQt5 import Qt
 
 from .lz77 import decompress as decompress_lz77
 from .utils import prime_factors, guessed_shapes
+from .widgets.data_browser import DataBrowser
 from .widgets.memory_map_list_view import MemoryMapListView
 from .widgets.memory_map_list_model import MemoryMapListModel
 from .widgets.image_color_mode_list import ImageColorModeList
@@ -22,16 +23,15 @@ from .widgets.data_type_list import DataTypeList
 from .widgets.palette_filter_proxy_model import PaletteFilterProxyModel
 from .widgets.combo_box import ComboBox
 from .widgets.palette_combo_box import PaletteComboBox
-from .widgets.gba_rom_header_view import GbaRomHeaderView
 from .widgets.sprite_view import SpriteView
 from .widgets.hexa_view import HexaView
 from .widgets.palette_size_list import PaletteSizeList
-from .widgets.pixel_browser import PixelBrowser
-from .widgets.tile_set_browser import TileSetBrowser
-from .widgets.sample_browser import SampleBrowser
+from .widgets.tile_set_view import TileSetView
 from .widgets.music_browser import MusicBrowser
 from .widgets.sample_view import SampleView
-from .widgets.music_view import MusicView
+from .widgets.data_view import DataView
+from .widgets.memory_map_filter_drop import MemoryMapFilterDrop
+from .widgets.memory_map_proxy_model import MemoryMapFilter
 from .gba_file import GBAFile, ByteCodec, MemoryMap, ImageColorMode, ImagePixelOrder, DataType
 from .qt_utils import blockSignals, exceptionAsMessageBox
 from .path_utils import resolve_abspath
@@ -39,6 +39,8 @@ from .behaviors import file_dialog
 from .behaviors import search_lz77
 from .behaviors import sappy_content
 from .behaviors import unknown_content
+from .behaviors.info import InfoDialog
+from . import gba_utils
 
 
 def uniqueValueElseNone(data: list[typing.Any]):
@@ -82,6 +84,19 @@ class Extractor(Qt.QWidget):
         saveAsAction.setIcon(Qt.QIcon("icons:save-as.png"))
         toolbar.addAction(saveAsAction)
 
+        toolbar.addSeparator()
+
+        infoAction = Qt.QAction(self)
+        infoAction.triggered.connect(self._showInfo)
+        infoAction.setText("Display info")
+        infoAction.setIcon(Qt.QIcon("icons:info.png"))
+        toolbar.addAction(infoAction)
+
+        toolbar.addSeparator()
+
+        self._memoryMapFilter = MemoryMapFilterDrop(self)
+        toolbar.addWidget(self._memoryMapFilter)
+
         spacer = Qt.QWidget(toolbar)
         spacer.setSizePolicy(Qt.QSizePolicy.Expanding, Qt.QSizePolicy.Expanding)
         toolbar.addWidget(spacer)
@@ -96,8 +111,8 @@ class Extractor(Qt.QWidget):
 
         self.__searchSappyContent = sappy_content.SearchSappyTag()
         self.__searchSappyContent.setContext(self)
-        self.__splitSappySample = sappy_content.SplitSappySample()
-        self.__splitSappySample.setContext(self)
+        self.__searchSappySong = sappy_content.SearchSappySongHeaderFromInstrument()
+        self.__searchSappySong.setContext(self)
 
         self.__createUncovered = unknown_content.CreateUncoveredMemory()
         self.__createUncovered.setContext(self)
@@ -129,6 +144,14 @@ class Extractor(Qt.QWidget):
         toolMenu.addAction(action)
 
         action = Qt.QAction(self)
+        action.triggered.connect(self.__searchSappySong.run)
+        action.setText("Search for sappy song header (from instrument table)")
+        action.setIcon(Qt.QIcon("icons:music.png"))
+        toolMenu.addAction(action)
+
+        toolMenu.addSeparator()
+
+        action = Qt.QAction(self)
         action.triggered.connect(self.__replaceUnknownByPadding.run)
         action.setText("Replace matching unknown by padding")
         action.setIcon(Qt.QIcon("icons:padding.png"))
@@ -139,7 +162,6 @@ class Extractor(Qt.QWidget):
         self._memView.selectionModel().selectionChanged.connect(self._onMemoryMapSelectionChanged)
         self._memView.setContextMenuPolicy(Qt.Qt.CustomContextMenu)
         self._memView.customContextMenuRequested.connect(self._showMemoryMapContextMenu)
-        self._memView.setSelectionMode(Qt.QAbstractItemView.ExtendedSelection)
 
         self._byteCodecList = ByteCodecList(self)
         self._byteCodecList.itemSelectionChanged.connect(self._onByteCodecSelected)
@@ -179,35 +201,24 @@ class Extractor(Qt.QWidget):
 
         self._image = SpriteView(self)
 
-        self._tilesetBrowser = TileSetBrowser(self)
+        self._tileSetView = TileSetView(self)
 
-        self._header = GbaRomHeaderView(self)
-
-        self._hexa = HexaView(self)
-        self._hexa.setContextMenuPolicy(Qt.Qt.CustomContextMenu)
-        self._hexa.customContextMenuRequested.connect(self._showHexaContextMenu)
-
-        self._pixelBrowser = PixelBrowser(self)
-        self._pixelBrowser.setContextMenuPolicy(Qt.Qt.CustomContextMenu)
-        self._pixelBrowser.customContextMenuRequested.connect(self._showPixelBrowserContextMenu)
-
-        self._sampleBrowser = SampleBrowser(self)
+        self._dataBrowser = DataBrowser(self)
         self._musicBrowser = MusicBrowser(self)
         self._sampleView = SampleView(self)
-        self._musicView = MusicView(self)
+        self._dataView = DataView(self)
+        self._hexaView = HexaView(self)
 
         self._view = Qt.QStackedLayout()
         self._view.addWidget(self._nothing)
         self._view.addWidget(self._image)
-        self._view.addWidget(self._tilesetBrowser)
+        self._view.addWidget(self._tileSetView)
         self._view.addWidget(self._error)
-        self._view.addWidget(self._header)
-        self._view.addWidget(self._hexa)
-        self._view.addWidget(self._pixelBrowser)
-        self._view.addWidget(self._sampleBrowser)
+        self._view.addWidget(self._hexaView)
+        self._view.addWidget(self._dataBrowser)
         self._view.addWidget(self._musicBrowser)
         self._view.addWidget(self._sampleView)
-        self._view.addWidget(self._musicView)
+        self._view.addWidget(self._dataView)
 
         leftLayout = Qt.QVBoxLayout()
         leftLayout.addWidget(toolbar)
@@ -231,7 +242,20 @@ class Extractor(Qt.QWidget):
         main.addLayout(self._view)
         main.setStretchFactor(self._view, 1)
 
+        self._memoryMapFilter.filterChanged.connect(self.__setMemoryMapFilter)
+
         self.setRom(None)
+
+    def _showInfo(self):
+        dialog = InfoDialog(self)
+        dialog.setContext(self)
+        dialog.exec()
+
+    def __setMemoryMapFilter(self, filter: MemoryMapFilter | None):
+        mem = self._memView.selectedMemoryMap()
+        self._memView.filterModel().setFilter(filter)
+        if mem is not None:
+            self._memView.scrollTo(mem)
 
     def loadFromDialog(self):
         filename = file_dialog.getTomlOrRomFilenameFromDialog(self)
@@ -252,10 +276,11 @@ class Extractor(Qt.QWidget):
         except Exception:
             raise
         else:
+            self._filename = None
             header = MemoryMap(
                 byte_offset=0,
                 byte_codec=ByteCodec.RAW,
-                byte_length=192,
+                byte_length=gba_utils.EXTANDED_GBA_HEADER_SIZE,
                 data_type=DataType.GBA_ROM_HEADER,
             )
             other = MemoryMap(
@@ -311,7 +336,8 @@ class Extractor(Qt.QWidget):
         self._rom = rom
         self._paletteList.setRom(rom)
         self._sampleView.setRom(rom)
-        self._musicView.setRom(rom)
+        self._dataView.setRom(rom)
+        self._dataBrowser.setRom(rom)
         if rom is None:
             self._memoryMapList.setObjectList([])
             self.setWindowTitle("No ROM loaded")
@@ -386,28 +412,22 @@ class Extractor(Qt.QWidget):
         if len(mems) == 1:
             mem = mems[0]
 
-            showRawAsHexa = Qt.QAction(menu)
-            showRawAsHexa.setText("Show raw as hexa")
-            showRawAsHexa.triggered.connect(self._showMemoryMapRawAsHexa)
-            menu.addAction(showRawAsHexa)
+            browseData = Qt.QAction(menu)
+            browseData.setText("Browse data memory")
+            browseData.triggered.connect(self._browseMemoryMapData)
+            menu.addAction(browseData)
 
-            saveRaw = Qt.QAction(menu)
-            saveRaw.setText("Save raw...")
-            saveRaw.triggered.connect(self._saveMemoryMapAsRaw)
-            saveRaw.setIcon(Qt.QIcon("icons:save.png"))
-            menu.addAction(saveRaw)
+            if mem.byte_codec not in (None, ByteCodec.RAW):
+                browseRaw = Qt.QAction(menu)
+                browseRaw.setText("Browse compressed memory")
+                browseRaw.triggered.connect(self._browseMemoryMapRaw)
+                menu.addAction(browseRaw)
 
-            showDataAsWave = Qt.QAction(menu)
-            showDataAsWave.setText("Browse data for sample")
-            showDataAsWave.triggered.connect(self._browseMemoryMapDataForSample)
-            showDataAsWave.setIcon(Qt.QIcon("icons:sample.png"))
-            menu.addAction(showDataAsWave)
-
-            showDataAsWave = Qt.QAction(menu)
-            showDataAsWave.setText("Browse data for music")
-            showDataAsWave.triggered.connect(self._browseMemoryMapDataForMusic)
-            showDataAsWave.setIcon(Qt.QIcon("icons:music.png"))
-            menu.addAction(showDataAsWave)
+            showDataAsMusic = Qt.QAction(menu)
+            showDataAsMusic.setText("Browse data for music")
+            showDataAsMusic.triggered.connect(self._browseMemoryMapDataForMusic)
+            showDataAsMusic.setIcon(Qt.QIcon("icons:music.png"))
+            menu.addAction(showDataAsMusic)
 
             if mem.data_type == DataType.UNKNOWN:
                 menu.addSeparator()
@@ -418,17 +438,18 @@ class Extractor(Qt.QWidget):
                 searchLZ77.setIcon(Qt.QIcon("icons:search.png"))
                 menu.addAction(searchLZ77)
 
+            menu.addSeparator()
+
+            saveRaw = Qt.QAction(menu)
+            saveRaw.setText("Save data...")
+            saveRaw.triggered.connect(self._saveMemoryMapData)
+            saveRaw.setIcon(Qt.QIcon("icons:save.png"))
+            menu.addAction(saveRaw)
+
             if mem.byte_codec not in (None, ByteCodec.RAW):
-                menu.addSeparator()
-
-                showDataAsHexa = Qt.QAction(menu)
-                showDataAsHexa.setText("Show data as hexa")
-                showDataAsHexa.triggered.connect(self._showMemoryMapDataAsHexa)
-                menu.addAction(showDataAsHexa)
-
                 saveDat = Qt.QAction(menu)
-                saveDat.setText("Save decompressed...")
-                saveDat.triggered.connect(self._saveMemoryMapAsDat)
+                saveDat.setText("Save compressed...")
+                saveDat.triggered.connect(self._saveMemoryMapRaw)
                 saveDat.setIcon(Qt.QIcon("icons:save.png"))
                 menu.addAction(saveDat)
 
@@ -471,22 +492,22 @@ class Extractor(Qt.QWidget):
             return
         data = self._rom.extract_raw(mem)
         address = mem.byte_offset
-        self._hexa.setData(data, address=address)
-        self._view.setCurrentWidget(self._hexa)
+        self._hexaView.setData(data, address=address)
+        self._view.setCurrentWidget(self._hexaView)
 
-    def _browseMemoryMapDataForSample(self):
+    def _browseMemoryMapRaw(self):
         mem = self._memView.selectedMemoryMap()
         if mem is None:
             return
-        data = self._rom.extract_data(mem)
-        memory = io.BytesIO(data.tobytes())
-        if mem.byte_codec in (None, ByteCodec.RAW):
-            address = mem.byte_offset
-        else:
-            # Absolute ROM location have no meaning here
-            address = 0
-        self._sampleBrowser.setMemory(memory, address=address)
-        self._view.setCurrentWidget(self._sampleBrowser)
+        self._dataBrowser.showMemoryMapRaw(mem)
+        self._view.setCurrentWidget(self._dataBrowser)
+
+    def _browseMemoryMapData(self):
+        mem = self._memView.selectedMemoryMap()
+        if mem is None:
+            return
+        self._dataBrowser.showMemoryMapData(mem)
+        self._view.setCurrentWidget(self._dataBrowser)
 
     def _browseMemoryMapDataForMusic(self):
         mem = self._memView.selectedMemoryMap()
@@ -502,20 +523,7 @@ class Extractor(Qt.QWidget):
         self._musicBrowser.setMemory(memory, address=address)
         self._view.setCurrentWidget(self._musicBrowser)
 
-    def _showMemoryMapDataAsHexa(self):
-        mem = self._memView.selectedMemoryMap()
-        if mem is None:
-            return
-        data = self._rom.extract_data(mem)
-        if mem.byte_codec in (None, ByteCodec.RAW):
-            address = mem.byte_offset
-        else:
-            # Absolute ROM location have no meaning here
-            address = 0
-        self._hexa.setData(data, address=address)
-        self._view.setCurrentWidget(self._hexa)
-
-    def _saveMemoryMapAsRaw(self):
+    def _saveMemoryMapRaw(self):
         """Save the memory as it is stored (compressed) into a file"""
         dialog = Qt.QFileDialog(self)
         dialog.setWindowTitle("Save as RAW")
@@ -543,7 +551,7 @@ class Extractor(Qt.QWidget):
         with open(filename, "wb") as f:
             f.write(data)
 
-    def _saveMemoryMapAsDat(self):
+    def _saveMemoryMapData(self):
         """Save the decompressed memory into a file"""
         dialog = Qt.QFileDialog(self)
         dialog.setWindowTitle("Save as DAT")
@@ -570,131 +578,6 @@ class Extractor(Qt.QWidget):
         filename = dialog.selectedFiles()[0]
         with open(filename, "wb") as f:
             f.write(data.tobytes())
-
-    def _showHexaContextMenu(self, pos: Qt.QPoint):
-        globalPos = self._hexa.mapToGlobal(pos)
-        menu = Qt.QMenu(self)
-
-        mem = self._memView.selectedMemoryMap()
-        if mem is None:
-            return
-
-        if mem.byte_codec not in (None, ByteCodec.RAW):
-            # Actually we can't split such memory
-            return
-
-        offset = self._hexa.selectedOffset()
-        if offset is None:
-            return
-
-        split = Qt.QAction(menu)
-        split.setText("Split memory map before this address")
-        split.triggered.connect(self._splitMemoryMap)
-        menu.addAction(split)
-
-        split = Qt.QAction(menu)
-        split.setText("Split memory map as sappy sample")
-        split.setIcon(Qt.QIcon("icons:sample.png"))
-        split.triggered.connect(self.__splitSappySample.run)
-        menu.addAction(split)
-
-        menu.exec(globalPos)
-
-    def _splitMemoryMap(self):
-        """Split the memory map at the selection"""
-        mem = self._memView.selectedMemoryMap()
-        if mem is None:
-            return
-
-        offset = self._hexa.selectedOffset()
-        if offset is None:
-            return
-
-        prevMem = MemoryMap(
-            byte_offset=mem.byte_offset,
-            byte_length=offset - mem.byte_offset,
-            data_type=DataType.UNKNOWN,
-        )
-
-        nextMem = MemoryMap(
-            byte_offset=offset,
-            byte_length=mem.byte_offset + mem.byte_length - offset,
-            data_type=DataType.UNKNOWN,
-        )
-
-        index = self._memoryMapList.objectIndex(mem).row()
-        self._memoryMapList.removeObject(mem)
-        self._memoryMapList.insertObject(index, prevMem)
-        self._memoryMapList.insertObject(index + 1, nextMem)
-
-    def _showPixelBrowserContextMenu(self, pos: Qt.QPoint):
-        globalPos = self._pixelBrowser.mapToGlobal(pos)
-        menu = Qt.QMenu(self)
-
-        mem = self._memView.selectedMemoryMap()
-        if mem is None:
-            return
-
-        if mem.byte_codec not in (None, ByteCodec.RAW):
-            # Actually we can't split such memory
-            return
-
-        split = Qt.QAction(menu)
-        split.setText("Extract memory map")
-        split.triggered.connect(self._extractMemoryMapFromPixelBrowser)
-        menu.addAction(split)
-
-        menu.exec(globalPos)
-
-    def _extractMemoryMapFromPixelBrowser(self):
-        """Split the memory map at the selection"""
-        mem = self._memView.selectedMemoryMap()
-        if mem is None:
-            return
-
-        selection = self._pixelBrowser.selection()
-        if selection is None:
-            return
-
-        if selection[0] != mem.byte_offset:
-            prevMem = MemoryMap(
-                byte_offset=mem.byte_offset,
-                byte_length=selection[0] - mem.byte_offset,
-                byte_codec=mem.byte_codec,
-                data_type=DataType.UNKNOWN,
-            )
-        else:
-            prevMem = None
-
-        selectedMem = MemoryMap(
-            byte_offset=selection[0],
-            byte_length=selection[1] - selection[0],
-            byte_codec=mem.byte_codec,
-            data_type=DataType.IMAGE,
-            image_color_mode=self._pixelBrowser.colorMode(),
-            image_pixel_order=self._pixelBrowser.pixelOrder(),
-        )
-
-        if selection[1] != mem.byte_offset + mem.byte_length:
-            nextMem = MemoryMap(
-                byte_offset=selection[1],
-                byte_length=mem.byte_offset + mem.byte_length - selection[1],
-                byte_codec=mem.byte_codec,
-                data_type=DataType.UNKNOWN,
-            )
-        else:
-            nextMem = None
-
-        index = self._memoryMapList.objectIndex(mem).row()
-        self._memoryMapList.removeObject(mem)
-        if prevMem is not None:
-            self._memoryMapList.insertObject(index, prevMem)
-            index += 1
-        if selectedMem is not None:
-            self._memoryMapList.insertObject(index, selectedMem)
-            index += 1
-        if nextMem is not None:
-            self._memoryMapList.insertObject(index, nextMem)
 
     def save(self):
         """Save to the loadined file"""
@@ -1002,33 +885,22 @@ class Extractor(Qt.QWidget):
         try:
             data_type_name = "" if mem.data_type is None else mem.data_type.name
             if mem.data_type == DataType.GBA_ROM_HEADER:
-                data = self._rom.extract_raw(mem)
-                self._header.setMemory(data)
-                self._view.setCurrentWidget(self._header)
+                self._dataView.setMemoryMap(mem)
+                self._view.setCurrentWidget(self._dataView)
             elif mem.data_type == DataType.PADDING:
-                data = self._rom.extract_raw(mem)
-                self._hexa.setData(data, address=mem.byte_offset)
-                self._view.setCurrentWidget(self._hexa)
+                self._showMemoryMapRawAsHexa()
             elif data_type_name.startswith("SAMPLE_"):
                 self._sampleView.setMemoryMap(mem)
                 self._view.setCurrentWidget(self._sampleView)
             elif data_type_name.startswith("MUSIC_"):
-                self._musicView.setMemoryMap(mem)
-                self._view.setCurrentWidget(self._musicView)
+                self._dataView.setMemoryMap(mem)
+                self._view.setCurrentWidget(self._dataView)
             elif mem.data_type == DataType.UNKNOWN:
-                data = self._rom.extract_data(mem)
-                memory = io.BytesIO(data.tobytes())
-                if mem.byte_codec in (None, ByteCodec.RAW):
-                    address = mem.byte_offset
-                else:
-                    # Absolute ROM location have no meaning here
-                    address = 0
-                self._pixelBrowser.setMemory(memory, address=address)
-                self._view.setCurrentWidget(self._pixelBrowser)
+                self._browseMemoryMapData()
             elif mem.data_type == DataType.TILE_SET:
                 data = self._rom.tile_set_data(mem)
-                self._tilesetBrowser.setData(data)
-                self._view.setCurrentWidget(self._tilesetBrowser)
+                self._tileSetView.setData(data)
+                self._view.setCurrentWidget(self._tileSetView)
             else:
                 data = self._readImage(mem)
                 self._image.setData(data)

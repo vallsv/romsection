@@ -12,6 +12,9 @@ dependencies = [
   "lru-dict",
 ]
 
+[project.scripts]
+romsection = "romsection.__main__:main"
+
 [project.optional-dependencies]
 dev = [
     "black",

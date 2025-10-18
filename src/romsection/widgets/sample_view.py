@@ -22,7 +22,6 @@ class SampleView(Qt.QWidget):
         self.__wave = SampleBrowserWidget(self)
         self.__statusbar = Qt.QStatusBar(self)
 
-
         self.__playButton = Qt.QPushButton(self.__toolbar)
         self.__playButton.clicked.connect(self._playback)
         self.__playButton.setToolTip("Playback visible data only")
@@ -92,7 +91,7 @@ class SampleView(Qt.QWidget):
             if len(data) < 16:
                 raise ValueError(f"Data is smaller ({len(data)}) than the expected header")
             header = data[0:16]
-            sample = sappy_utils.Sample.parse(header)
+            sample = sappy_utils.SampleHeader.parse(header)
             memory = io.BytesIO(data[16:])
             self.__wave.setPosition(0)
             self.__wave.setSampleCodec(SampleCodecs.INT8)
