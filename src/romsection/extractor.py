@@ -10,7 +10,6 @@ import traceback
 import queue
 from PyQt5 import Qt
 
-from .lz77 import decompress as decompress_lz77
 from .utils import prime_factors, guessed_shapes
 from .widgets.data_browser import DataBrowser
 from .widgets.memory_map_list_view import MemoryMapListView
@@ -113,6 +112,9 @@ class Extractor(Qt.QWidget):
         self.__searchSappyContent.setContext(self)
         self.__searchSappySong = sappy_content.SearchSappySongHeaderFromInstrument()
         self.__searchSappySong.setContext(self)
+
+        self.__searchForLZ77 = search_lz77.SearchL777Content()
+        self.__searchForLZ77.setContext(self)
 
         self.__createUncovered = unknown_content.CreateUncoveredMemory()
         self.__createUncovered.setContext(self)
@@ -350,59 +352,6 @@ class Extractor(Qt.QWidget):
     def memoryMapList(self) -> MemoryMapListModel:
         return self._memoryMapList
 
-    def _searchLZ77(self):
-        mem = self._memView.selectedMemoryMap()
-        if mem is None:
-            return
-
-        assert self._rom is not None
-
-        memoryMapQueue: queue.Queue[MemoryMap] = queue.Queue()
-
-        Qt.QGuiApplication.setOverrideCursor(Qt.QCursor(Qt.Qt.WaitCursor))
-        pool = Qt.QThreadPool.globalInstance()
-
-        nbFound = 0
-
-        def flushQueue():
-            nonlocal nbFound
-            try:
-                lz77mem = memoryMapQueue.get(block=False)
-                if nbFound == 0:
-                    # At the first found we remove the parent memory
-                    self._memoryMapList.removeObject(mem)
-                nbFound += 1
-                index = self._memoryMapList.indexAfterOffset(lz77mem.byte_offset)
-                self._memoryMapList.insertObject(index, lz77mem)
-            except queue.Empty:
-                pass
-
-        runnable = search_lz77.SearchLZ77Runnable(
-            rom=self._rom,
-            memoryRange=(mem.byte_offset, mem.byte_end),
-            queue=memoryMapQueue,
-        )
-
-        dialog = search_lz77.WaitForSearchDialog(self)
-        dialog.registerRunnable(runnable)
-        pool.start(runnable)
-
-        timer = Qt.QTimer(self)
-        timer.timeout.connect(flushQueue)
-        timer.start(1000)
-
-        dialog.exec()
-
-        timer.stop()
-        flushQueue()
-        Qt.QGuiApplication.restoreOverrideCursor()
-
-        Qt.QMessageBox.information(
-            self,
-            "Seatch result",
-            f"{nbFound} potential LZ77 location was found"
-        )
-
     def _showMemoryMapContextMenu(self, pos: Qt.QPoint):
         globalPos = self._memView.mapToGlobal(pos)
         menu = Qt.QMenu(self)
@@ -433,7 +382,7 @@ class Extractor(Qt.QWidget):
                 menu.addSeparator()
 
                 searchLZ77 = Qt.QAction(menu)
-                searchLZ77.triggered.connect(self._searchLZ77)
+                searchLZ77.triggered.connect(self.__searchForLZ77.run)
                 searchLZ77.setText("Search for LZ77 data...")
                 searchLZ77.setIcon(Qt.QIcon("icons:search.png"))
                 menu.addAction(searchLZ77)

@@ -9,8 +9,7 @@ import typing
 import dataclasses
 import hashlib
 
-from .lz77 import decompress as decompress_lz77
-from .lz77 import dryrun as dryrun_lz77
+from . import lz77
 from .array_utils import convert_a1rgb15_to_argb32, convert_8bx1_to_4bx2, convert_to_tiled_8x8
 from .codec import pixels_per_byte_length
 from .model import ByteCodec, DataType, ImageColorMode, ImagePixelOrder, MemoryMap
@@ -75,60 +74,6 @@ class GBAFile:
     def size(self):
         return self._size
 
-    def search_for_lz77(
-        self,
-        offset_from: int,
-        offset_to: int,
-        must_stop: typing.Callable[[], bool],
-        on_found: typing.Callable[[MemoryMap], None],
-        on_progress: typing.Callable[[int], None] | None = None,
-        skip_valid_blocks=False,
-    ):
-        """
-        Scan a range of the memory to find LZ77 valid compressed memory.
-
-        Raises:
-            StopIteration: If a stop was requested
-        """
-        f = self._f
-        offset = offset_from
-        f.seek(offset, os.SEEK_SET)
-        stream = f
-        while offset < offset_to:
-            if must_stop():
-                raise StopIteration
-            try:
-                size = dryrun_lz77(
-                    stream,
-                    min_length=16,
-                    max_length=600*400*2,
-                    must_stop=must_stop
-                )
-            except ValueError:
-                size = None
-            except RuntimeError:
-                size = None
-            else:
-                mem = MemoryMap(
-                    byte_offset=offset,
-                    byte_length=stream.tell() - offset,
-                    byte_payload=size,
-                    byte_codec=ByteCodec.LZ77,
-                    data_type=DataType.UNKNOWN,
-                )
-                on_found(mem)
-            if not skip_valid_blocks:
-                offset += 1
-                stream.seek(offset, os.SEEK_SET)
-            else:
-                if size is None:
-                    offset += 1
-                    stream.seek(offset, os.SEEK_SET)
-                else:
-                    offset += size
-            if on_progress is not None:
-                on_progress(offset)
-
     def search_for_bytes(self,
         offset_from: int,
         offset_to: int,
@@ -188,7 +133,7 @@ class GBAFile:
     def extract_lz77(self, mem: MemoryMap):
         f = self._f
         f.seek(mem.byte_offset, os.SEEK_SET)
-        result = decompress_lz77(f)
+        result = lz77.decompress(f)
         offset_end = f.tell()
         mem.byte_length = offset_end - mem.byte_offset
         mem.byte_payload = len(result)
@@ -262,7 +207,7 @@ class GBAFile:
                     f = self._f
                     f.seek(mem.byte_offset, os.SEEK_SET)
                     try:
-                        size = dryrun_lz77(f)
+                        size = lz77.dryrun(f)
                     except Exception:
                         return None
                 else:

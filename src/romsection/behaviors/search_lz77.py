@@ -1,126 +1,99 @@
-import typing
+import io
 import queue
 from PyQt5 import Qt
 
-from ..gba_file import GBAFile
-from ..model import MemoryMap
+from ..model import MemoryMap, ByteCodec, DataType
+from . import search
+from .behavior import Behavior
+from .. import lz77
 
 
-class Signals(Qt.QObject):
-    started = Qt.pyqtSignal()
-    succeeded = Qt.pyqtSignal()
-    cancelled = Qt.pyqtSignal()
-    finished = Qt.pyqtSignal()
-    progress = Qt.pyqtSignal()
+class SearchLZ77Runnable(search.SearchRunnable):
+    def title(self) -> str:
+        return "Searching for LZ77 content..."
+
+    def _checkStream(self, romOffset: int, stream: io.IOBase) -> bool:
+        """
+        Check the stream at the place it is.
+        """
+        start = stream.tell()
+        size = lz77.dryrun(
+            stream,
+            min_length=16,
+            max_length=600*400*2,
+            must_stop=self._mustStop
+        )
+        if size is None:
+            return False
+        byteLength = stream.tell() - start
+        mem = MemoryMap(
+            byte_offset=romOffset,
+            byte_length=byteLength,
+            byte_payload=size,
+            byte_codec=ByteCodec.LZ77,
+            data_type=DataType.UNKNOWN,
+        )
+        self._onFound(mem)
+        return True
 
 
-class SearchLZ77Runnable(Qt.QRunnable):
-    def __init__(
-        self,
-        rom: GBAFile,
-        memoryRange: tuple[int, int],
-        queue: queue.Queue[MemoryMap],
-    ):
-        Qt.QRunnable.__init__(self)
-        self.signals = Signals()
-        self._rom = rom
-        self._queue = queue
-        self._memoryRange = memoryRange
-        self._mustStop: typing.Callable[[], bool] | None = None
+class SearchL777Content(Behavior):
+    """
+    Search for LZ77 content.
+    """
+    def run(self) -> None:
+        context = self.context()
+        rom = context.rom()
 
-    def setCancelCallback(self, mustStop: typing.Callable[[], bool] | None = None):
-        self._mustStop = mustStop
+        mem = context._memView.selectedMemoryMap()
+        if mem is None:
+            return
 
-    def _onFound(self, mem: MemoryMap):
-        self._queue.put(mem)
+        assert rom is not None
 
-    def _onProgress(self, offset: int):
-        self.signals.progress.emit()
+        memoryMapQueue: queue.Queue[MemoryMap] = queue.Queue()
 
-    def byteLength(self) -> int:
-        return self._memoryRange[1] - self._memoryRange[0]
+        Qt.QGuiApplication.setOverrideCursor(Qt.QCursor(Qt.Qt.WaitCursor))
+        pool = Qt.QThreadPool.globalInstance()
 
-    def run(self):
-        self.signals.started.emit()
-        try:
-            self._rom.search_for_lz77(
-                offset_from=self._memoryRange[0],
-                offset_to=self._memoryRange[1],
-                must_stop=self._mustStop,
-                on_found=self._onFound,
-                on_progress=self._onProgress,
-            )
-        except StopIteration:
-            self.signals.cancelled.emit()
-        else:
-            self.signals.succeeded.emit()
-        finally:
-            self.signals.finished.emit()
+        nbFound = 0
+        memoryMapList = context.memoryMapList()
 
+        def flushQueue():
+            nonlocal nbFound
+            try:
+                lz77mem = memoryMapQueue.get(block=False)
+                if nbFound == 0:
+                    # At the first found we remove the parent memory
+                    memoryMapList.removeObject(mem)
+                nbFound += 1
+                index = memoryMapList.indexAfterOffset(lz77mem.byte_offset)
+                memoryMapList.insertObject(index, lz77mem)
+            except queue.Empty:
+                pass
 
-class WaitForSearchDialog(Qt.QDialog):
-    def __init__(self, parent: Qt.QWidget | None = None):
-        Qt.QDialog.__init__(self, parent=parent)
-        self.setWindowTitle("Searching for LZ77...")
+        runnable = SearchLZ77Runnable(
+            rom=rom,
+            memoryRange=(mem.byte_offset, mem.byte_end),
+            queue=memoryMapQueue,
+        )
 
-        self._nbJobs = 0
-        self._startedJobs = 0
-        self._succeededJobs = 0
-        self._finishedJobs = 0
-        self._cancelled = False
-        self._bytesToCheck = 0
-        self._bytesChecked = 0
+        dialog = search.WaitForSearchDialog(context)
+        dialog.registerRunnable(runnable)
+        pool.start(runnable)
 
-        widget = Qt.QWidget()
-        widget.setLayout(Qt.QGridLayout())
+        timer = Qt.QTimer(context)
+        timer.timeout.connect(flushQueue)
+        timer.start(1000)
 
-        self._progressBar = Qt.QProgressBar(self)
+        dialog.exec()
 
-        self._cancel = Qt.QPushButton(self)
-        self._cancel.setText("Cancel")
-        self._cancel.clicked.connect(self._requestCancel)
+        timer.stop()
+        flushQueue()
+        Qt.QGuiApplication.restoreOverrideCursor()
 
-        buttonLayout = Qt.QHBoxLayout()
-        buttonLayout.addStretch(0)
-        buttonLayout.addWidget(self._cancel)
-        buttonLayout.addStretch(0)
-
-        layout = Qt.QVBoxLayout(self)
-        layout.addWidget(self._progressBar)
-        layout.addLayout(buttonLayout)
-
-    def _cancelRequested(self) -> bool:
-        return self._cancelled
-
-    def registerRunnable(self, runnable: SearchLZ77Runnable):
-        self._bytesToCheck += runnable.byteLength()
-        runnable.signals.started.connect(self._onStarted)
-        runnable.signals.finished.connect(self._onFinished)
-        runnable.setCancelCallback(self._cancelRequested)
-        runnable.signals.progress.connect(self._onProgress)
-        self._nbJobs += 1
-        self._progressBar.setRange(0, self._bytesToCheck)
-
-    def _requestCancel(self):
-        self._cancelled = True
-
-    def _onProgress(self):
-        self._bytesChecked += 1
-        self._updateProgress()
-
-    def _onStarted(self):
-        self._startedJobs += 1
-
-    def _onSucceeded(self):
-        self._succeededJobs += 1
-
-    def _onFinished(self):
-        self._finishedJobs += 1
-        if self._finishedJobs == self._nbJobs:
-            if not self._cancelled:
-                self.accept()
-            else:
-                self.reject()
-
-    def _updateProgress(self):
-        self._progressBar.setValue(self._bytesChecked)
+        Qt.QMessageBox.information(
+            context,
+            "Seatch result",
+            f"{nbFound} potential LZ77 location was found"
+        )
