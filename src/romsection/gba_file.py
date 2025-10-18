@@ -10,6 +10,7 @@ import dataclasses
 import hashlib
 
 from . import lz77
+from . import huffman
 from .array_utils import convert_a1rgb15_to_argb32, convert_8bx1_to_4bx2, convert_to_tiled_8x8
 from .codec import pixels_per_byte_length
 from .model import ByteCodec, DataType, ImageColorMode, ImagePixelOrder, MemoryMap
@@ -139,6 +140,15 @@ class GBAFile:
         mem.byte_payload = len(result)
         return result
 
+    def extract_huffman(self, mem: MemoryMap):
+        f = self._f
+        f.seek(mem.byte_offset, os.SEEK_SET)
+        result = huffman.decompress(f)
+        offset_end = f.tell()
+        mem.byte_length = offset_end - mem.byte_offset
+        mem.byte_payload = len(result)
+        return result
+
     def extract_data(self, mem: MemoryMap) -> numpy.ndarray:
         """
         Return data after byte codec decompression.
@@ -150,6 +160,9 @@ class GBAFile:
             result = numpy.frombuffer(raw, dtype=numpy.uint8)
         elif mem.byte_codec == ByteCodec.LZ77:
             result = self.extract_lz77(mem)
+        elif mem.byte_codec == ByteCodec.HUFFMAN:
+            raw = self.extract_huffman(mem)
+            result = numpy.frombuffer(raw, dtype=numpy.uint8)
         return result
 
     def palette_data(self, mem: MemoryMap) -> numpy.ndarray:
@@ -189,6 +202,26 @@ class GBAFile:
         # FIXME: Guess something closer to a square
         return 1, nb_pixels
 
+    def byte_payload(self, mem: MemoryMap) -> int:
+        """Return the size of the data content, in bytes"""
+        if mem.byte_codec in [None, ByteCodec.RAW]:
+            if mem.byte_length is None:
+                raise ValueError(f"Memory map 0x{mem.byte_offset:08X} have inconcistente description")
+            return mem.byte_length
+
+        if mem.byte_payload is not None:
+            return mem.byte_payload
+
+        stream = self._f
+        stream.seek(mem.byte_offset, os.SEEK_SET)
+        if mem.byte_codec == ByteCodec.LZ77:
+            return lz77.dryrun(stream)
+
+        if mem.byte_codec == ByteCodec.HUFFMAN:
+            return huffman.dryrun(stream)
+
+        raise ValueError(f"Memory map 0x{mem.byte_offset:08X} have unexpected codec {mem.byte_codec}")
+
     def image_shape(self, mem: MemoryMap) -> tuple[int, int] | None:
         """Only return the image shape.
 
@@ -197,27 +230,10 @@ class GBAFile:
         if mem.data_type != DataType.IMAGE:
             return None
 
-        if mem.byte_codec in [None, ByteCodec.RAW]:
-            if mem.byte_length is None:
-                raise ValueError(f"Memory map 0x{mem.byte_offset:08X} have inconcistente description")
-            size = mem.byte_length
-        else:
-            if mem.byte_payload is None:
-                if mem.byte_codec == ByteCodec.LZ77:
-                    f = self._f
-                    f.seek(mem.byte_offset, os.SEEK_SET)
-                    try:
-                        size = lz77.dryrun(f)
-                    except Exception:
-                        return None
-                else:
-                    raise ValueError(f"Memory map 0x{mem.byte_offset:08X} have inconcistente description")
-            else:
-                size = mem.byte_payload
-
         if mem.image_shape is not None:
             return mem.image_shape
         else:
+            size = self.byte_payload(mem)
             nb_pixels = pixels_per_byte_length(mem.image_color_mode or ImageColorMode.INDEXED_8BIT, size)
             return self.guess_first_image_shape(nb_pixels)
 

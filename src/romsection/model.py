@@ -10,6 +10,9 @@ class ByteCodec(enum.Enum):
     LZ77 = enum.auto()
     """Compressed as LZ77"""
 
+    HUFFMAN = enum.auto()
+    """Compressed as huffman"""
+
 
 class DataTypeGroup(enum.Enum):
     IMAGE = enum.auto()

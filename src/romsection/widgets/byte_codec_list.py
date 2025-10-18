@@ -22,6 +22,11 @@ class ByteCodecList(Qt.QListWidget):
         item.setData(Qt.Qt.UserRole, ByteCodec.LZ77)
         self.addItem(item)
 
+        item = Qt.QListWidgetItem()
+        item.setText(f"Huffman")
+        item.setData(Qt.Qt.UserRole, ByteCodec.HUFFMAN)
+        self.addItem(item)
+
         rect = self.visualItemRect(item)
         self.setMaximumHeight(rect.height() * self.count() + 4)
 
