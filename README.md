@@ -43,3 +43,4 @@ aspects of the GBA.
 - [GBA LZ77 codec in cpp](https://github.com/lunasorcery/gba-lz77)
 - [Nintenlord Hacking](https://github.com/TimoVesalainen/Nintenlord.Hacking)
 - [Decoding the ARM7TDMI instruction set](https://www.gregorygaines.com/blog/decoding-the-arm7tdmi-instruction-set-game-boy-advance/)
+- [GBAC BinarySerializer.Nintendo](https://github.com/BinarySerializer/BinarySerializer.Nintendo)
