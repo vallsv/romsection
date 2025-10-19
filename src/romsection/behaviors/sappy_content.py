@@ -7,7 +7,7 @@ from ..gba_file import GBAFile
 from .behavior import Behavior
 from ..format_utils import format_address
 from ..model import MemoryMap, ByteCodec, DataType
-from .. import sappy_utils
+from ..parsers import sappy_utils
 from ..widgets.memory_map_list_model import MemoryMapListModel
 
 

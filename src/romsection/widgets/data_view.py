@@ -5,8 +5,8 @@ import typing
 from PyQt5 import Qt
 
 from ..model import MemoryMap, DataType
-from .. import sappy_utils
-from .. import gba_utils
+from ..parsers import sappy_utils
+from ..parsers import gba_utils
 from ..gba_file import GBAFile
 from .hexa_view import HexaView
 from .sappy_instrument_bank import SappyInstrumentBank

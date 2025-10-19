@@ -9,8 +9,8 @@ import typing
 import dataclasses
 import hashlib
 
-from . import lz77
-from . import huffman
+from .parsers import lz77
+from .parsers import huffman
 from .array_utils import convert_a1rgb15_to_argb32, convert_8bx1_to_4bx2, convert_to_tiled_8x8
 from .codec import pixels_per_byte_length
 from .model import ByteCodec, DataType, ImageColorMode, ImagePixelOrder, MemoryMap

@@ -41,7 +41,7 @@ from .behaviors import search_huffman
 from .behaviors import sappy_content
 from .behaviors import unknown_content
 from .behaviors.info import InfoDialog
-from . import gba_utils
+from .parsers import gba_utils
 
 
 def uniqueValueElseNone(data: list[typing.Any]):

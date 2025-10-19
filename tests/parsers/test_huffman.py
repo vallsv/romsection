@@ -1,5 +1,5 @@
 import io
-from romsection import huffman
+from romsection.parsers import huffman
 
 
 EXPECTED = b"\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\xa0\x0b\x0c\x0d\x0e\x0f\

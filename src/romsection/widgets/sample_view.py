@@ -4,7 +4,7 @@ from PyQt5 import Qt
 
 from ..model import MemoryMap, DataType, SampleCodec
 from ..gba_file import GBAFile
-from .. import sappy_utils
+from ..parsers import sappy_utils
 from .sample_browser_widget import SampleBrowserWidget
 from .sample_codec_combo_box import SampleCodecs
 

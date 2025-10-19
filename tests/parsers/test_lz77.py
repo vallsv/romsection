@@ -1,6 +1,6 @@
 import io
 import numpy
-from romsection.lz77 import decompress, dryrun
+from romsection.parsers.lz77 import decompress, dryrun
 
 
 def test_lz77():
