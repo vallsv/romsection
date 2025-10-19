@@ -46,7 +46,7 @@ def _read_u24_little(f):
     return v[0] + (v[1] << 8) + (v[2] << 16)
 
 
-def decompress(input_stream: io.RawIOBase) -> numpy.ndarray:
+def decompress(input_stream: io.RawIOBase) -> bytes:
     """Decompress a data stream into a memory array."""
     magic = _read_u8(input_stream)
     if magic != 0x10:
@@ -86,7 +86,7 @@ def decompress(input_stream: io.RawIOBase) -> numpy.ndarray:
                         result[pos:pos + cp] = result[pos - location: pos - location + cp]
                     pos += cp
                     length -= cp
-    return result
+    return result.tobytes()
 
 
 def dryrun(

@@ -147,7 +147,7 @@ class GBAFile:
         stream.seek(mem.byte_offset, os.SEEK_SET)
 
         if byte_codec == ByteCodec.LZ77:
-            result = lz77.decompress(stream).tobytes()
+            result = lz77.decompress(stream)
         elif byte_codec == ByteCodec.HUFFMAN:
             result = huffman.decompress(stream)
         else:
