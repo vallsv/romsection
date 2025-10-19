@@ -36,13 +36,15 @@ from collections.abc import Callable
 
 def _read_u8(f):
     v = f.read(1)
-    if len(v) == 0:
+    if len(v) != 1:
         raise ValueError("Not a valid GBA LZ77 stream")
     return v[0]
 
 
 def _read_u24_little(f):
     v = f.read(3)
+    if len(v) != 3:
+        raise ValueError("Not a valid GBA LZ77 stream")
     return v[0] + (v[1] << 8) + (v[2] << 16)
 
 
@@ -125,6 +127,8 @@ def dryrun(
                 pos += 1
             else:
                 value = input_stream.read(2)
+                if len(value) != 2:
+                    raise ValueError("Not a valid GBA LZ77 stream")
                 length = (value[0] >> 4) + 3
 
                 if pos + length > decompressed_length:
