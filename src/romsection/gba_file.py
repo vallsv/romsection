@@ -129,36 +129,33 @@ class GBAFile:
         f = self._f
         f.seek(mem.byte_offset, os.SEEK_SET)
         data = f.read(mem.byte_length)
+        if len(data) != mem.byte_length:
+            overflow = (mem.byte_length or 0) - len(data)
+            raise ValueError(f"Memory map 0x{mem.byte_offset:08X} is outside of the ROM memory (overflow: {overflow} bytes))")
         return data
-
-    def extract_lz77(self, mem: MemoryMap) -> bytes:
-        f = self._f
-        f.seek(mem.byte_offset, os.SEEK_SET)
-        result = lz77.decompress(f)
-        offset_end = f.tell()
-        mem.byte_length = offset_end - mem.byte_offset
-        mem.byte_payload = len(result)
-        return result.tobytes()
-
-    def extract_huffman(self, mem: MemoryMap) -> bytes:
-        f = self._f
-        f.seek(mem.byte_offset, os.SEEK_SET)
-        result = huffman.decompress(f)
-        offset_end = f.tell()
-        mem.byte_length = offset_end - mem.byte_offset
-        mem.byte_payload = len(result)
-        return result
 
     def extract_data(self, mem: MemoryMap) -> bytes:
         """
         Return data after byte codec decompression.
         """
-        if mem.byte_codec in [None, ByteCodec.RAW]:
-            result = self.extract_raw(mem)
-        elif mem.byte_codec == ByteCodec.LZ77:
-            result = self.extract_lz77(mem)
-        elif mem.byte_codec == ByteCodec.HUFFMAN:
-            result = self.extract_huffman(mem)
+        byte_codec = mem.byte_codec
+
+        if byte_codec in (None, ByteCodec.RAW):
+            return self.extract_raw(mem)
+
+        stream = self._f
+        stream.seek(mem.byte_offset, os.SEEK_SET)
+
+        if byte_codec == ByteCodec.LZ77:
+            result = lz77.decompress(stream).tobytes()
+        elif byte_codec == ByteCodec.HUFFMAN:
+            result = huffman.decompress(stream)
+        else:
+            raise ValueError(f"Memory map 0x{mem.byte_offset:08X} contains an unknown byte codec {byte_codec}")
+
+        offset_end = stream.tell()
+        mem.byte_length = offset_end - mem.byte_offset
+        mem.byte_payload = len(result)
         return result
 
     def palette_data(self, mem: MemoryMap) -> numpy.ndarray:
