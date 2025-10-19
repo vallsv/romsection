@@ -170,15 +170,15 @@ class Extractor(Qt.QWidget):
         self._memView.customContextMenuRequested.connect(self._showMemoryMapContextMenu)
 
         self._byteCodecList = ByteCodecList(self)
-        self._byteCodecList.itemSelectionChanged.connect(self._onByteCodecSelected)
+        self._byteCodecList.valueChanged.connect(self._onByteCodecSelected)
 
         self._dataTypeList = DataTypeList(self)
-        self._dataTypeList.itemSelectionChanged.connect(self._onDataTypeSelected)
+        self._dataTypeList.valueChanged.connect(self._onDataTypeSelected)
         self._dataTypeList.setMinimumWidth(180)
         self._dataTypeList.setMaximumWidth(180)
 
         self._paletteSizeList = PaletteSizeList(self)
-        self._paletteSizeList.itemSelectionChanged.connect(self._onPaletteSizeSelected)
+        self._paletteSizeList.valueChanged.connect(self._onPaletteSizeSelected)
 
         self._paletteCombo = PaletteComboBox(self)
         self._paletteCombo.setModel(self._paletteList)
@@ -186,13 +186,13 @@ class Extractor(Qt.QWidget):
         self._paletteCombo.setSizeAdjustPolicy(
             Qt.QComboBox.AdjustToMinimumContentsLengthWithIcon
         )
-        self._paletteCombo.currentIndexChanged.connect(self._onPaletteSelected)
+        self._paletteCombo.valueChanged.connect(self._onPaletteSelected)
 
         self._colorModeList = ImageColorModeList(self)
-        self._colorModeList.itemSelectionChanged.connect(self._onImageColorModeSelected)
+        self._colorModeList.valueChanged.connect(self._onImageColorModeSelected)
 
         self._pixelOrderList = ImagePixelOrderList(self)
-        self._pixelOrderList.itemSelectionChanged.connect(self._onImagePixelOrderSelected)
+        self._pixelOrderList.valueChanged.connect(self._onImagePixelOrderSelected)
 
         self._shapeList = ShapeList(self)
         self._shapeList.itemSelectionChanged.connect(self._onShapeSelected)
@@ -605,19 +605,19 @@ class Extractor(Qt.QWidget):
         self._paletteSizeList.setEnabled(False)
         self._sampleCodecList.setEnabled(False)
         with blockSignals(self._byteCodecList):
-            self._byteCodecList.selectByteCodec(None)
+            self._byteCodecList.selectValue(None)
         with blockSignals(self._dataTypeList):
-            self._dataTypeList.selectDataType(None)
+            self._dataTypeList.selectValue(None)
         with blockSignals(self._colorModeList):
-            self._colorModeList.selectImageColorMode(None)
+            self._colorModeList.selectValue(None)
         with blockSignals(self._paletteCombo):
-            self._paletteCombo.selectMemoryMap(None)
+            self._paletteCombo.selectValue(None)
         with blockSignals(self._shapeList):
             self._shapeList.clear()
         with blockSignals(self._pixelOrderList):
-            self._pixelOrderList.selectImagePixelOrder(None)
+            self._pixelOrderList.selectValue(None)
         with blockSignals(self._paletteSizeList):
-            self._paletteSizeList.selectPaletteSize(None)
+            self._paletteSizeList.selectValue(None)
         with blockSignals(self._sampleCodecList):
             self._sampleCodecList.selectValue(None)
         self._view.setCurrentWidget(self._nothing)
@@ -637,13 +637,13 @@ class Extractor(Qt.QWidget):
 
         with blockSignals(self._byteCodecList):
             reducedByteCodec = uniqueValueElseNone([m.byte_codec for m in mems])
-            self._byteCodecList.selectByteCodec(reducedByteCodec)
+            self._byteCodecList.selectValue(reducedByteCodec)
         with blockSignals(self._dataTypeList):
             reducedDataType = uniqueValueElseNone([m.data_type for m in mems])
-            self._dataTypeList.selectDataType(reducedDataType)
+            self._dataTypeList.selectValue(reducedDataType)
         with blockSignals(self._colorModeList):
             reducedColorMode = uniqueValueElseNone([m.image_color_mode for m in mems])
-            self._colorModeList.selectImageColorMode(reducedColorMode)
+            self._colorModeList.selectValue(reducedColorMode)
         with blockSignals(self._paletteCombo):
             reducedOffset = uniqueValueElseNone([m.image_palette_offset for m in mems])
             palette_mem = None
@@ -653,13 +653,13 @@ class Extractor(Qt.QWidget):
                 except ValueError:
                     logging.warning("Palette 0x{mem.image_palette_offset:08X} does not exist")
                     palette_mem = None
-            self._paletteCombo.selectMemoryMap(palette_mem)
+            self._paletteCombo.selectValue(palette_mem)
         with blockSignals(self._pixelOrderList):
             reducedPixelOrder = uniqueValueElseNone([m.image_pixel_order for m in mems])
-            self._pixelOrderList.selectImagePixelOrder(reducedPixelOrder)
+            self._pixelOrderList.selectValue(reducedPixelOrder)
         with blockSignals(self._paletteSizeList):
             reducedPaletteSize = uniqueValueElseNone([m.palette_size for m in mems])
-            self._paletteSizeList.selectPaletteSize(reducedPaletteSize)
+            self._paletteSizeList.selectValue(reducedPaletteSize)
         with blockSignals(self._sampleCodecList):
             sampleCodec = uniqueValueElseNone([m.sample_codec for m in mems])
             self._sampleCodecList.selectValue(sampleCodec)
@@ -690,13 +690,13 @@ class Extractor(Qt.QWidget):
             self._lastBySize[mem.byte_payload] = mem
 
         with blockSignals(self._byteCodecList):
-            self._byteCodecList.selectByteCodec(mem.byte_codec)
+            self._byteCodecList.selectValue(mem.byte_codec)
 
         with blockSignals(self._dataTypeList):
-            self._dataTypeList.selectDataType(mem.data_type)
+            self._dataTypeList.selectValue(mem.data_type)
 
         with blockSignals(self._colorModeList):
-            self._colorModeList.selectImageColorMode(mem.image_color_mode)
+            self._colorModeList.selectValue(mem.image_color_mode)
 
         with blockSignals(self._paletteCombo):
             image_palette_offset = mem.image_palette_offset
@@ -708,13 +708,13 @@ class Extractor(Qt.QWidget):
                 except ValueError:
                     logging.warning("Palette 0x{mem.image_palette_offset:08X} does not exist")
                     palette_mem = None
-            self._paletteCombo.selectMemoryMap(palette_mem)
+            self._paletteCombo.selectValue(palette_mem)
 
         with blockSignals(self._pixelOrderList):
-            self._pixelOrderList.selectImagePixelOrder(mem.image_pixel_order)
+            self._pixelOrderList.selectValue(mem.image_pixel_order)
 
         with blockSignals(self._paletteSizeList):
-            self._paletteSizeList.selectPaletteSize(mem.palette_size)
+            self._paletteSizeList.selectValue(mem.palette_size)
 
         with blockSignals(self._sampleCodecList):
             self._sampleCodecList.selectValue(mem.sample_codec)
@@ -724,7 +724,7 @@ class Extractor(Qt.QWidget):
         self._updateImage()
 
     def _onByteCodecSelected(self):
-        byteCodec = self._byteCodecList.selectedByteCodec()
+        byteCodec = self._byteCodecList.selectedValue()
         if byteCodec is None:
             return
         for mem in self._memView.selectedMemoryMaps():
@@ -736,7 +736,7 @@ class Extractor(Qt.QWidget):
         self._updateImage()
 
     def _onDataTypeSelected(self):
-        dataType = self._dataTypeList.selectedDataType()
+        dataType = self._dataTypeList.selectedValue()
         if dataType is None:
             return
         for mem in self._memView.selectedMemoryMaps():
@@ -748,7 +748,7 @@ class Extractor(Qt.QWidget):
         self._updateImage()
 
     def _onPaletteSizeSelected(self):
-        paletteSize = self._paletteSizeList.selectedPaletteSize()
+        paletteSize = self._paletteSizeList.selectedValue()
         if paletteSize is None:
             return
         for mem in self._memView.selectedMemoryMaps():
@@ -760,7 +760,7 @@ class Extractor(Qt.QWidget):
         self._updateImage()
 
     def _updateWidgets(self):
-        dataType = self._dataTypeList.selectedDataType()
+        dataType = self._dataTypeList.selectedValue()
         self._paletteSizeList.setVisible(dataType == DataType.PALETTE)
         self._colorModeList.setVisible(dataType in (DataType.IMAGE,DataType.TILE_SET))
         self._paletteCombo.setVisible(dataType in (DataType.IMAGE,DataType.TILE_SET))
@@ -812,7 +812,7 @@ class Extractor(Qt.QWidget):
                         self._shapeList.selectShape(reducedShape)
 
     def _onImageColorModeSelected(self):
-        colorMode = self._colorModeList.selectedImageColorMode()
+        colorMode = self._colorModeList.selectedValue()
         for mem in self._memView.selectedMemoryMaps():
             if mem.image_color_mode == colorMode:
                 continue
@@ -839,13 +839,13 @@ class Extractor(Qt.QWidget):
         self._updateImage()
 
     def _onImagePixelOrderSelected(self):
-        pixelOrder = self._pixelOrderList.selectedImagePixelOrder()
+        pixelOrder = self._pixelOrderList.selectedValue()
         for mem in self._memView.selectedMemoryMaps():
             mem.image_pixel_order = pixelOrder
         self._updateImage()
 
     def _onPaletteSelected(self):
-        palette_mem = self._paletteCombo.selectedMemoryMap()
+        palette_mem = self._paletteCombo.selectedValue()
         for mem in self._memView.selectedMemoryMaps():
             if palette_mem is None:
                 mem.image_palette_offset = None

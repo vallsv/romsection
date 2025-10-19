@@ -4,6 +4,9 @@ from ..gba_file import ByteCodec
 
 
 class ByteCodecList(Qt.QListWidget):
+
+    valueChanged = Qt.pyqtSignal(object)
+
     def __init__(self, parent: Qt.QWidget | None = None):
         Qt.QListWidget.__init__(self, parent)
         self.setUniformItemSizes(True)
@@ -30,24 +33,29 @@ class ByteCodecList(Qt.QListWidget):
         rect = self.visualItemRect(item)
         self.setMaximumHeight(rect.height() * self.count() + 4)
 
-    def selectedByteCodec(self) -> ByteCodec | None:
+        self.itemSelectionChanged.connect(self._onItemSelectionChanged)
+
+    def _onItemSelectionChanged(self):
+        self.valueChanged.emit(self.selectedValue())
+
+    def selectedValue(self) -> ByteCodec | None:
         items = self.selectedItems()
         if len(items) != 1:
             return None
-        dataType = items[0].data(Qt.Qt.UserRole)
-        return dataType
+        value = items[0].data(Qt.Qt.UserRole)
+        return value
 
-    def _findItemFromByteCodec(self, dataType: ByteCodec | None) -> Qt.QListWidgetItem | None:
-        if dataType is None:
+    def _findItemFromValue(self, value: ByteCodec | None) -> Qt.QListWidgetItem | None:
+        if value is None:
             return None
         for i in range(self.count()):
             item = self.item(i)
-            if item.data(Qt.Qt.UserRole) == dataType:
+            if item.data(Qt.Qt.UserRole) == value:
                 return item
         return None
 
-    def selectByteCodec(self, dataType: ByteCodec | None):
-        item = self._findItemFromByteCodec(dataType)
+    def selectValue(self, value: ByteCodec | None):
+        item = self._findItemFromValue(value)
         if item is not None:
             i = self.row(item)
             self.setCurrentRow(i)

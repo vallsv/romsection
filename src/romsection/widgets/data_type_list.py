@@ -5,6 +5,9 @@ from . import ui_styles
 
 
 class DataTypeList(Qt.QListWidget):
+
+    valueChanged = Qt.pyqtSignal(object)
+
     def __init__(self, parent: Qt.QWidget | None = None):
         Qt.QListWidget.__init__(self, parent)
         self.setUniformItemSizes(True)
@@ -95,24 +98,29 @@ class DataTypeList(Qt.QListWidget):
         self.setMinimumHeight(rect.height() * self.count() + 4)
         self.setMaximumHeight(rect.height() * self.count() + 4)
 
-    def selectedDataType(self) -> DataType | None:
+        self.itemSelectionChanged.connect(self._onItemSelectionChanged)
+
+    def _onItemSelectionChanged(self):
+        self.valueChanged.emit(self.selectedValue())
+
+    def selectedValue(self) -> DataType | None:
         items = self.selectedItems()
         if len(items) != 1:
             return None
-        dataType = items[0].data(Qt.Qt.UserRole)
-        return dataType
+        value = items[0].data(Qt.Qt.UserRole)
+        return value
 
-    def _findItemFromDataType(self, dataType: DataType | None) -> Qt.QListWidgetItem | None:
-        if dataType is None:
+    def _findItemFromValue(self, value: DataType | None) -> Qt.QListWidgetItem | None:
+        if value is None:
             return None
         for i in range(self.count()):
             item = self.item(i)
-            if item.data(Qt.Qt.UserRole) == dataType:
+            if item.data(Qt.Qt.UserRole) == value:
                 return item
         return None
 
-    def selectDataType(self, dataType: DataType | None):
-        item = self._findItemFromDataType(dataType)
+    def selectValue(self, value: DataType | None):
+        item = self._findItemFromValue(value)
         if item is not None:
             i = self.row(item)
             self.setCurrentRow(i)
