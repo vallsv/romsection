@@ -198,8 +198,7 @@ class DataView(Qt.QWidget):
             self.__table.setMemory(io.BytesIO(b""))
             return
 
-        array = rom.extract_data(mem)
-        data = array.tobytes()
+        data = rom.extract_data(mem)
 
         model = self.__table.model()
         dataType = self.__memoryMap.data_type if self.__memoryMap else None

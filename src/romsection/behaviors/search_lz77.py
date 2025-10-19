@@ -5,7 +5,7 @@ from PyQt5 import Qt
 from ..model import MemoryMap, ByteCodec, DataType
 from . import search
 from .behavior import Behavior
-from .. import lz77
+from ..parsers import lz77
 
 
 class SearchLZ77Runnable(search.SearchRunnable):

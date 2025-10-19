@@ -228,7 +228,7 @@ class SearchSappySongHeadersFromSongTable(Behavior):
             )
             return
 
-        data = rom.extract_data(mem).tobytes()
+        data = rom.extract_data(mem)
         songHeaders = []
         while data:
             if len(data) < sappy_utils.SONG_TABLE_ITEM_SIZE:
@@ -346,7 +346,7 @@ class SearchSappyTracksFromSongTable(Behavior):
             )
             return
 
-        data = rom.extract_data(mem).tobytes()
+        data = rom.extract_data(mem)
         songHeaders = []
         while data:
             if len(data) < sappy_utils.SONG_TABLE_ITEM_SIZE:
@@ -462,7 +462,7 @@ class SearchSappyKeySplitTableFromInstrumentTable(Behavior):
             )
             return
 
-        data = rom.extract_data(mem).tobytes()
+        data = rom.extract_data(mem)
         keySplitTableAddress = []
         item_size = sappy_utils.INSTRUMENT_TABLE_ITEM_SIZE
         while data:
@@ -582,7 +582,7 @@ class SearchSappySampleFromInstrumentTable(Behavior):
             )
             return
 
-        data = rom.extract_data(mem).tobytes()
+        data = rom.extract_data(mem)
         sampleAddress = []
         item_size = sappy_utils.INSTRUMENT_TABLE_ITEM_SIZE
         while data:

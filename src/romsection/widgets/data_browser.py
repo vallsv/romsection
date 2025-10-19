@@ -346,7 +346,7 @@ class DataBrowser(Qt.QWidget):
         if rom is None:
             return
         data = rom.extract_data(mem)
-        memory = io.BytesIO(data.tobytes())
+        memory = io.BytesIO(data)
         if mem.byte_codec in (None, ByteCodec.RAW):
             address = mem.byte_offset
             self.__mem = mem

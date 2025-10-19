@@ -109,7 +109,7 @@ class GBAFile:
 
         Return the found offsets.
         """
-        decompressed = self.extract_data(mem).tobytes()
+        decompressed = self.extract_data(mem)
         size = len(data)
         f = io.BytesIO(decompressed)
         offset = 0
@@ -131,16 +131,16 @@ class GBAFile:
         data = f.read(mem.byte_length)
         return data
 
-    def extract_lz77(self, mem: MemoryMap):
+    def extract_lz77(self, mem: MemoryMap) -> bytes:
         f = self._f
         f.seek(mem.byte_offset, os.SEEK_SET)
         result = lz77.decompress(f)
         offset_end = f.tell()
         mem.byte_length = offset_end - mem.byte_offset
         mem.byte_payload = len(result)
-        return result
+        return result.tobytes()
 
-    def extract_huffman(self, mem: MemoryMap):
+    def extract_huffman(self, mem: MemoryMap) -> bytes:
         f = self._f
         f.seek(mem.byte_offset, os.SEEK_SET)
         result = huffman.decompress(f)
@@ -149,20 +149,16 @@ class GBAFile:
         mem.byte_payload = len(result)
         return result
 
-    def extract_data(self, mem: MemoryMap) -> numpy.ndarray:
+    def extract_data(self, mem: MemoryMap) -> bytes:
         """
         Return data after byte codec decompression.
-
-        FIXME: Return bytes instead.
         """
         if mem.byte_codec in [None, ByteCodec.RAW]:
-            raw = self.extract_raw(mem)
-            result = numpy.frombuffer(raw, dtype=numpy.uint8)
+            result = self.extract_raw(mem)
         elif mem.byte_codec == ByteCodec.LZ77:
             result = self.extract_lz77(mem)
         elif mem.byte_codec == ByteCodec.HUFFMAN:
-            raw = self.extract_huffman(mem)
-            result = numpy.frombuffer(raw, dtype=numpy.uint8)
+            result = self.extract_huffman(mem)
         return result
 
     def palette_data(self, mem: MemoryMap) -> numpy.ndarray:
@@ -177,6 +173,7 @@ class GBAFile:
             ValueError: If the memory can't be read as a palette.
         """
         data = self.extract_data(mem)
+        array = numpy.frombuffer(data, dtype=numpy.uint8)
 
         if mem.data_type != DataType.PALETTE:
             raise ValueError(f"Memory map 0x{mem.byte_offset:08X} is not a palette")
@@ -184,13 +181,13 @@ class GBAFile:
         size = mem.palette_size if mem.palette_size is not None else 16
         byte_per_color = 2
 
-        if data.size % (size * byte_per_color) != 0:
+        if array.size % (size * byte_per_color) != 0:
             raise ValueError(f"Memory map 0x{mem.byte_offset:08X} don't have the right size")
 
-        nb = data.size // (size * byte_per_color)
-        data = convert_a1rgb15_to_argb32(data)
-        data.shape = nb, -1, 4
-        return data
+        nb = array.size // (size * byte_per_color)
+        array = convert_a1rgb15_to_argb32(array)
+        array.shape = nb, -1, 4
+        return array
 
     def guess_first_image_shape(self, nb_pixels) -> tuple[int, int]:
         if nb_pixels == 240 * 160:
@@ -252,24 +249,25 @@ class GBAFile:
             raise ValueError(f"Memory map 0x{mem.byte_offset:08X} is not an image")
 
         data = self.extract_data(mem)
+        array = numpy.frombuffer(data, dtype=numpy.uint8)
 
         if mem.image_color_mode == ImageColorMode.INDEXED_4BIT:
-            data = convert_8bx1_to_4bx2(data)
+            array = convert_8bx1_to_4bx2(array)
 
         if mem.image_shape is not None:
             try:
-                data.shape = mem.image_shape
+                array.shape = mem.image_shape
             except Exception:
-                data.shape = self.guess_first_image_shape(data.size)
+                array.shape = self.guess_first_image_shape(array.size)
         else:
-            data.shape = self.guess_first_image_shape(data.size)
+            array.shape = self.guess_first_image_shape(array.size)
 
         if mem.image_pixel_order == ImagePixelOrder.TILED_8X8:
-            if data.shape[0] % 8 != 0 or data.shape[1] % 8 != 0:
-                raise ValueError(f"Memory map 0x{mem.byte_offset:08X} use incompatible option: shape {data.shape} can't used with tiled 8x8")
-            data = convert_to_tiled_8x8(data)
+            if array.shape[0] % 8 != 0 or array.shape[1] % 8 != 0:
+                raise ValueError(f"Memory map 0x{mem.byte_offset:08X} use incompatible option: shape {array.shape} can't used with tiled 8x8")
+            array = convert_to_tiled_8x8(array)
 
-        palette_data = None
+        palette_array = None
         if mem.image_palette_offset is not None:
             try:
                 palette_map = self.memory_map_from_offset(mem.image_palette_offset)
@@ -278,23 +276,23 @@ class GBAFile:
                 pass
             else:
                 try:
-                    palette_data = self.palette_data(palette_map)
+                    palette_array = self.palette_data(palette_map)
                 except ValueError:
                     logging.warning("Error while accessing palette data", exc_info=True)
                     pass
 
-        if palette_data is not None:
+        if palette_array is not None:
             try:
                 # FIXME: Implement index different than 0
-                return palette_data[0][data]
+                return palette_array[0][array]
             except Exception:
                 logging.warning("Error while processing RGB data from palette", exc_info=True)
                 pass
         else:
             if mem.image_color_mode == ImageColorMode.INDEXED_4BIT:
-                data *= 16
+                array *= 16
 
-        return data
+        return array
 
     def tile_set_data(self, mem: MemoryMap) -> numpy.ndarray:
         """
@@ -311,19 +309,20 @@ class GBAFile:
             raise ValueError(f"Memory map 0x{mem.byte_offset:08X} is not an image")
 
         data = self.extract_data(mem)
+        array = numpy.frombuffer(data, dtype=numpy.uint8)
 
         if mem.image_color_mode == ImageColorMode.INDEXED_4BIT:
-            data = convert_8bx1_to_4bx2(data)
+            array = convert_8bx1_to_4bx2(array)
 
         if mem.image_shape is not None:
             try:
-                data.shape = -1, 8, 8
+                array.shape = -1, 8, 8
             except Exception:
-                data.shape = -1, 8, 8
+                array.shape = -1, 8, 8
         else:
-            data.shape = -1, 8, 8
+            array.shape = -1, 8, 8
 
-        palette_data = None
+        palette_array = None
         if mem.image_palette_offset is not None:
             try:
                 palette_map = self.memory_map_from_offset(mem.image_palette_offset)
@@ -332,20 +331,20 @@ class GBAFile:
                 pass
             else:
                 try:
-                    palette_data = self.palette_data(palette_map)
+                    palette_array = self.palette_data(palette_map)
                 except ValueError:
                     logging.warning("Error while accessing palette data", exc_info=True)
                     pass
 
-        if palette_data is not None:
+        if palette_array is not None:
             try:
-                data = palette_data[0][data]
+                array = palette_array[0][array]
             except Exception:
                 logging.warning("Error while processing RGB data from palette", exc_info=True)
                 pass
         else:
             if mem.image_color_mode == ImageColorMode.INDEXED_4BIT:
                 # Better grey scale
-                data *= 16
+                array *= 16
 
-        return data
+        return array

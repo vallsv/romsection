@@ -76,8 +76,7 @@ class SampleView(Qt.QWidget):
             self.__wave.setMemory(io.BytesIO(b""))
             return
 
-        array = rom.extract_data(mem)
-        data = array.tobytes()
+        data = rom.extract_data(mem)
         data_type = mem.data_type
 
         if data_type == DataType.SAMPLE_INT8:

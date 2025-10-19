@@ -7,7 +7,7 @@ from ..gba_file import GBAFile
 from ..model import MemoryMap, ByteCodec, DataType
 from . import search
 from .behavior import Behavior
-from .. import huffman
+from ..parsers import huffman
 
 
 class SearchHuffmanRunnable(search.SearchRunnable):

@@ -479,7 +479,7 @@ class Extractor(Qt.QWidget):
         if mem is None:
             return
         data = self._rom.extract_data(mem)
-        memory = io.BytesIO(data.tobytes())
+        memory = io.BytesIO(data)
         if mem.byte_codec in (None, ByteCodec.RAW):
             address = mem.byte_offset
         else:
@@ -542,7 +542,7 @@ class Extractor(Qt.QWidget):
 
         filename = dialog.selectedFiles()[0]
         with open(filename, "wb") as f:
-            f.write(data.tobytes())
+            f.write(data)
 
     def save(self):
         """Save to the loadined file"""
