@@ -150,6 +150,10 @@ class GBAFile:
             result = lz77.decompress(stream)
         elif byte_codec == ByteCodec.HUFFMAN:
             result = huffman.decompress(stream)
+        elif byte_codec == ByteCodec.HUFFMAN_OVER_LZ77:
+            intermediate = huffman.decompress(stream)
+            sream2 = io.BytesIO(intermediate)
+            result = lz77.decompress(sream2)
         else:
             raise ValueError(f"Memory map 0x{mem.byte_offset:08X} contains an unknown byte codec {byte_codec}")
 
@@ -213,6 +217,11 @@ class GBAFile:
 
         if mem.byte_codec == ByteCodec.HUFFMAN:
             return huffman.dryrun(stream)
+
+        if mem.byte_codec == ByteCodec.HUFFMAN_OVER_LZ77:
+            intermediate = huffman.decompress(stream)
+            sream2 = io.BytesIO(intermediate)
+            return lz77.dryrun(sream2)
 
         raise ValueError(f"Memory map 0x{mem.byte_offset:08X} have unexpected codec {mem.byte_codec}")
 

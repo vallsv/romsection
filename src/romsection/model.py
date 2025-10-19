@@ -13,6 +13,13 @@ class ByteCodec(enum.Enum):
     HUFFMAN = enum.auto()
     """Compressed as huffman"""
 
+    HUFFMAN_OVER_LZ77 = enum.auto()
+    """
+    Compressed as huffman over LZ77.
+
+    The raw data is seen as huffman content.
+    """
+
 
 class DataTypeGroup(enum.Enum):
     IMAGE = enum.auto()
