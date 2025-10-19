@@ -7,6 +7,7 @@ from PyQt5 import Qt
 
 from .object_list_model import ObjectListModel
 from ..gba_file import MemoryMap, DataType
+from . import ui_styles
 
 
 class MemoryMapListModel(ObjectListModel):
@@ -37,19 +38,9 @@ class MemoryMapListModel(ObjectListModel):
             mem = self.object(index)
             if mem is None:
                 return Qt.QIcon()
-            if mem.data_type == DataType.IMAGE:
-                return Qt.QIcon("icons:image.png")
-            if mem.data_type == DataType.PALETTE:
-                return Qt.QIcon("icons:palette.png")
-            if mem.data_type == DataType.TILE_SET:
-                return Qt.QIcon("icons:tileset.png")
-            if mem.data_type == DataType.UNKNOWN:
-                return Qt.QIcon("icons:unknown.png")
-            if mem.data_type == DataType.PADDING:
-                return Qt.QIcon("icons:padding.png")
-            if mem.data_type == DataType.GBA_ROM_HEADER:
-                return Qt.QIcon("icons:gba.png")
-
-            return Qt.QIcon("icons:empty.png")
+            data_type = mem.data_type
+            if data_type is None:
+                return Qt.QIcon("icons:empty.png")
+            return ui_styles.getIcon(data_type)
 
         return ObjectListModel.data(self, index, role)

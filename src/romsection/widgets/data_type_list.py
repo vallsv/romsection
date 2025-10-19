@@ -1,6 +1,7 @@
 from PyQt5 import Qt
 
 from ..gba_file import DataType
+from . import ui_styles
 
 
 class DataTypeList(Qt.QListWidget):
@@ -15,37 +16,79 @@ class DataTypeList(Qt.QListWidget):
         item = Qt.QListWidgetItem()
         item.setText(f"GBA ROM header")
         item.setData(Qt.Qt.UserRole, DataType.GBA_ROM_HEADER)
-        item.setIcon(Qt.QIcon("icons:gba.png"))
+        item.setIcon(ui_styles.getIcon(DataType.GBA_ROM_HEADER))
         self.addItem(item)
 
         item = Qt.QListWidgetItem()
         item.setText(f"Image")
         item.setData(Qt.Qt.UserRole, DataType.IMAGE)
-        item.setIcon(Qt.QIcon("icons:image.png"))
+        item.setIcon(ui_styles.getIcon(DataType.IMAGE))
         self.addItem(item)
 
         item = Qt.QListWidgetItem()
         item.setText(f"Palette")
         item.setData(Qt.Qt.UserRole, DataType.PALETTE)
-        item.setIcon(Qt.QIcon("icons:palette.png"))
+        item.setIcon(ui_styles.getIcon(DataType.PALETTE))
         self.addItem(item)
 
         item = Qt.QListWidgetItem()
         item.setText(f"Tile set")
         item.setData(Qt.Qt.UserRole, DataType.TILE_SET)
-        item.setIcon(Qt.QIcon("icons:tileset.png"))
+        item.setIcon(ui_styles.getIcon(DataType.TILE_SET))
         self.addItem(item)
 
         item = Qt.QListWidgetItem()
         item.setText(f"Padding")
         item.setData(Qt.Qt.UserRole, DataType.PADDING)
-        item.setIcon(Qt.QIcon("icons:padding.png"))
+        item.setIcon(ui_styles.getIcon(DataType.PADDING))
+        self.addItem(item)
+
+        item = Qt.QListWidgetItem()
+        item.setText(f"Sample (sappy)")
+        item.setData(Qt.Qt.UserRole, DataType.SAMPLE_SAPPY)
+        item.setIcon(ui_styles.getIcon(DataType.SAMPLE_SAPPY))
+        self.addItem(item)
+
+        item = Qt.QListWidgetItem()
+        item.setText(f"Sample Int8")
+        item.setData(Qt.Qt.UserRole, DataType.SAMPLE_INT8)
+        item.setIcon(ui_styles.getIcon(DataType.SAMPLE_INT8))
+        self.addItem(item)
+
+        item = Qt.QListWidgetItem()
+        item.setText(f"Music instrument (sappy)")
+        item.setData(Qt.Qt.UserRole, DataType.MUSIC_INSTRUMENT_SAPPY)
+        item.setIcon(ui_styles.getIcon(DataType.MUSIC_INSTRUMENT_SAPPY))
+        self.addItem(item)
+
+        item = Qt.QListWidgetItem()
+        item.setText(f"Music song address (sappy)")
+        item.setData(Qt.Qt.UserRole, DataType.MUSIC_SONG_TABLE_SAPPY)
+        item.setIcon(ui_styles.getIcon(DataType.MUSIC_SONG_TABLE_SAPPY))
+        self.addItem(item)
+
+        item = Qt.QListWidgetItem()
+        item.setText(f"Music song header (sappy)")
+        item.setData(Qt.Qt.UserRole, DataType.MUSIC_SONG_HEADER_SAPPY)
+        item.setIcon(ui_styles.getIcon(DataType.MUSIC_SONG_HEADER_SAPPY))
+        self.addItem(item)
+
+        item = Qt.QListWidgetItem()
+        item.setText(f"Music song track (sappy)")
+        item.setData(Qt.Qt.UserRole, DataType.MUSIC_TRACK_SAPPY)
+        item.setIcon(ui_styles.getIcon(DataType.MUSIC_TRACK_SAPPY))
+        self.addItem(item)
+
+        item = Qt.QListWidgetItem()
+        item.setText(f"Music key split table (sappy)")
+        item.setData(Qt.Qt.UserRole, DataType.MUSIC_KEY_SPLIT_TABLE_SAPPY)
+        item.setIcon(ui_styles.getIcon(DataType.MUSIC_KEY_SPLIT_TABLE_SAPPY))
         self.addItem(item)
 
         item = Qt.QListWidgetItem()
         item.setText(f"Unknown")
         item.setData(Qt.Qt.UserRole, DataType.UNKNOWN)
-        item.setIcon(Qt.QIcon("icons:unknown.png"))
+        item.setIcon(ui_styles.getIcon(DataType.UNKNOWN))
         self.addItem(item)
 
         rect = self.visualItemRect(item)

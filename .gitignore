@@ -1,2 +1,14 @@
 *.egg-info
 __pycache__
+
+# Ignore hidden content
+/.*
+
+# Ignore private content
+/_*
+
+# I place rom descriptions here
+/db
+
+# I place roms here
+/roms

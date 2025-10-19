@@ -4,11 +4,19 @@ from ..gba_file import ImagePixelOrder
 
 
 class ImagePixelOrderCombo(Qt.QComboBox):
+
+    valueChanged = Qt.pyqtSignal(object)
+
     def __init__(self, parent: Qt.QWidget | None = None):
         Qt.QComboBox.__init__(self, parent)
         self.addItem("Normal", ImagePixelOrder.NORMAL)
         self.addItem("Tiled 8×8", ImagePixelOrder.TILED_8X8)
         self.setCurrentIndex(0)
+        self.currentIndexChanged.connect(self.__onCurrentIndexChanged)
+
+    def __onCurrentIndexChanged(self):
+        value = self.selectedValue()
+        self.valueChanged.emit(value)
 
     def selectedValue(self) -> ImagePixelOrder | None:
         index = self.currentIndex()

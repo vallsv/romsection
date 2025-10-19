@@ -7,6 +7,7 @@ from PyQt5 import Qt
 from ..gba_file import ImageColorMode, ImagePixelOrder
 from .. import array_utils
 from ..codec import byte_per_element, pixel_per_element
+from ..qt_utils import blockSignals
 
 
 @dataclasses.dataclass
@@ -70,12 +71,18 @@ def contiguousMemorySelection(
     return path
 
 
-class PixelBrowserWidget(Qt.QWidget):
+class PixelBrowserView(Qt.QWidget):
 
     selectionChanged = Qt.pyqtSignal(object)
 
+    positionChanged = Qt.pyqtSignal(int)
+
+    pageSizeChanged = Qt.pyqtSignal(int)
+
     def __init__(self, parent: Qt.QWidget | None = None):
         Qt.QWidget.__init__(self, parent=parent)
+        self.setSizePolicy(Qt.QSizePolicy.Expanding, Qt.QSizePolicy.Expanding)
+
         self.__colorMode = ImageColorMode.INDEXED_8BIT
         self.__pixelOrder = ImagePixelOrder.NORMAL
         self.__memory: io.IOBase = io.BytesIO(b"")
@@ -85,6 +92,66 @@ class PixelBrowserWidget(Qt.QWidget):
         self.__zoom: int = 8
         self.__selectionFrom: int = -1
         self.__selectionTo: int = -1
+        self.__inSelection = False
+
+    def paintEvent(self, event: Qt.QPaintEvent):
+        painter = Qt.QPainter(self)
+        self._paintAll(painter)
+
+    def _paintAll(self, painter: Qt.QPainter):
+        painter.save()
+        parent = self.parent()
+
+        transform = Qt.QTransform()
+        transform = transform.scale(self.__zoom, self.__zoom)
+        painter.setTransform(transform)
+
+        visibleHeight = self.height() // self.__zoom
+        if self.height() % self.__zoom != 0:
+            visibleHeight += 1
+
+        height = self._getConstrainedHeight(visibleHeight)
+        width = self._getConstrainedWidth(self.__pixelWidth)
+
+        nb_pixels = width * height
+        nb_bytes = self._getNbBytesPerPixels(nb_pixels)
+
+        binaryData = self._readBytes(self.__pos, nb_bytes)
+        nbEasyBytes = self._getNbBytesForEasyDisplay(len(binaryData), width)
+        easyBytes = binaryData[0:nbEasyBytes]
+        image = self._toImage(easyBytes, width)
+        painter.drawImage(Qt.QPoint(0, 0), image)
+
+        pos = image.height()
+        remainingBytes = binaryData[nbEasyBytes:]
+        image = self._toImageFromLastRow(remainingBytes)
+        if image is not None:
+            painter.drawImage(Qt.QPoint(0, pos), image)
+
+        painter.resetTransform()
+
+        path = self._createSelectionPath()
+        if path is not None:
+            pen = Qt.QPen(Qt.QColor(0, 0, 255))
+            pen.setWidth(min(max(self.__zoom // 3, 1), 4))
+            painter.setPen(pen)
+            painter.drawPath(path)
+
+        painter.restore()
+
+    def setSelection(self, selection: tuple[int, int] | None):
+        if self.__inSelection:
+            # In the mouse selection interaction
+            # Cancel the request from outside
+            return
+        if selection is None:
+            selection = (-1, -1)
+        if selection == (self.__selectionFrom, self.__selectionTo):
+            return
+        self.__selectionFrom, self.__selectionTo = selection
+        bpe = byte_per_element(self.__colorMode)
+        self.__selectionTo -= bpe
+        self.update()
 
     def selection(self) -> tuple[int, int] | None:
         """
@@ -109,6 +176,7 @@ class PixelBrowserWidget(Qt.QWidget):
         if zoom == self.__zoom:
             return
         self.__zoom = zoom
+        self._updatePageSize()
         self.update()
 
     def position(self) -> int:
@@ -118,6 +186,7 @@ class PixelBrowserWidget(Qt.QWidget):
         if position == self.__pos:
             return
         self.__pos = position
+        self.positionChanged.emit(position)
         self.update()
 
     def pixelWidth(self) -> int:
@@ -127,6 +196,7 @@ class PixelBrowserWidget(Qt.QWidget):
         if pixelWidth == self.__pixelWidth:
             return
         self.__pixelWidth = pixelWidth
+        self._updatePageSize()
         self.update()
 
     def memory(self) -> io.IOBase:
@@ -142,6 +212,7 @@ class PixelBrowserWidget(Qt.QWidget):
         self.__memory.seek(0, os.SEEK_SET)
         self.__pos = 0
 
+        self._updatePageSize()
         self.update()
 
     def memoryLength(self) -> int:
@@ -154,6 +225,7 @@ class PixelBrowserWidget(Qt.QWidget):
         if self.__colorMode == colorMode:
             return
         self.__colorMode = colorMode
+        self._updatePageSize()
         self.update()
 
     def pixelOrder(self) -> ImagePixelOrder:
@@ -163,7 +235,11 @@ class PixelBrowserWidget(Qt.QWidget):
         if self.__pixelOrder == pixelOrder:
             return
         self.__pixelOrder = pixelOrder
+        self._updatePageSize()
         self.update()
+
+    def _updatePageSize(self):
+        self.pageSizeChanged.emit(self.pageSize())
 
     def _readBytes(self, pos: int, length: int) -> bytes:
         """
@@ -262,10 +338,6 @@ class PixelBrowserWidget(Qt.QWidget):
         nb_bytes = max_bytes - max_bytes % nb_bytes_for_width
         return nb_bytes
 
-    def paintEvent(self, event: Qt.QPaintEvent):
-        painter = Qt.QPainter(self)
-        self._paintAll(painter)
-
     def _getBytesPerLine(self, width: int) -> int:
         if self.__colorMode == ImageColorMode.INDEXED_8BIT:
             return width
@@ -348,46 +420,6 @@ class PixelBrowserWidget(Qt.QWidget):
         width = (len(useData) // bytesPerTiles) * 8
         # FIXME: It would be good to display something at the place there is no more data
         return self._toImage(useData, width)
-
-    def _paintAll(self, painter: Qt.QPainter):
-        painter.save()
-
-        transform = Qt.QTransform()
-        transform = transform.scale(self.__zoom, self.__zoom)
-        painter.setTransform(transform)
-
-        visibleHeight = self.height() // self.__zoom
-        if self.height() % self.__zoom != 0:
-            visibleHeight += 1
-
-        height = self._getConstrainedHeight(visibleHeight)
-        width = self._getConstrainedWidth(self.__pixelWidth)
-
-        nb_pixels = width * height
-        nb_bytes = self._getNbBytesPerPixels(nb_pixels)
-
-        binaryData = self._readBytes(self.__pos, nb_bytes)
-        nbEasyBytes = self._getNbBytesForEasyDisplay(len(binaryData), width)
-        easyBytes = binaryData[0:nbEasyBytes]
-        image = self._toImage(easyBytes, width)
-        painter.drawImage(Qt.QPoint(0, 0), image)
-
-        pos = image.height()
-        remainingBytes = binaryData[nbEasyBytes:]
-        image = self._toImageFromLastRow(remainingBytes)
-        if image is not None:
-            painter.drawImage(Qt.QPoint(0, pos), image)
-
-        painter.resetTransform()
-
-        path = self._createSelectionPath()
-        if path is not None:
-            pen = Qt.QPen(Qt.QColor(0, 0, 255))
-            pen.setWidth(min(max(self.__zoom // 3, 1), 4))
-            painter.setPen(pen)
-            painter.drawPath(path)
-
-        painter.restore()
 
     def _pixelFromBytePosition(self, position: int) -> PixelSelection:
         """Return the left-top pcorner position of a memory position."""
@@ -509,12 +541,27 @@ class PixelBrowserWidget(Qt.QWidget):
         byteIndex = (pixelIndex // ppe) * bpe
         return min(max(self.__pos + byteIndex, 0), self.__len)
 
+    def pageSize(self) -> int:
+        height = self.height()
+        zoom = self.__zoom
+        pixelHeight, _ = divmod(height, zoom)
+        if self.__pixelOrder == ImagePixelOrder.TILED_8X8:
+            tileHeight, _ = divmod(pixelHeight, 8)
+            pixelHeight = tileHeight * 8
+        bytesPerLine = self.bytesPerLine()
+        return pixelHeight * bytesPerLine
+
+    def resizeEvent(self, event):
+        self.update()
+        self.pageSizeChanged.emit(self.pageSize())
+
     def mousePressEvent(self, event: Qt.QMouseEvent):
         if event.button() == Qt.Qt.LeftButton:
             self.grabMouse()
             pos = self._positionFromPixel(event.pos())
             self.__selectionFrom = pos
             self.__selectionTo = -1
+            self.__inSelection = True
             self.update()
             self.selectionChanged.emit(self.selection())
 
@@ -529,9 +576,161 @@ class PixelBrowserWidget(Qt.QWidget):
         if event.button() == Qt.Qt.LeftButton:
             self.releaseMouse()
             if self.__selectionTo == -1:
-                # The mouse habe not moved, it a way to deselect
+                # The mouse have not moved, that's a way to deselect
                 return
             pos = self._positionFromPixel(event.pos())
             self.__selectionTo = pos
+            self.__inSelection = False
             self.update()
             self.selectionChanged.emit(self.selection())
+        else:
+            self.__inSelection = False
+
+    def wheelEvent(self, event: Qt.QWheelEvent):
+        deltaY = event.angleDelta().y()
+        if deltaY != 0:
+            pos = self.position() - self.bytesPerLine() * deltaY
+            pos = min(max(pos, 0), max(self.memoryLength() - self.pageSize(), 0))
+            self.setPosition(pos)
+
+
+class PixelBrowserWidget(Qt.QFrame):
+
+    positionChanged = Qt.pyqtSignal(int)
+
+    selectionChanged = Qt.pyqtSignal(object)
+
+    def __init__(self, parent: Qt.QWidget | None = None):
+        Qt.QFrame.__init__(self, parent=parent)
+        self.setSizePolicy(Qt.QSizePolicy.Expanding, Qt.QSizePolicy.Expanding)
+        self.setFrameShadow(Qt.QFrame.Sunken)
+        self.setFrameShape(Qt.QFrame.StyledPanel)
+        self.setFocusPolicy(Qt.Qt.StrongFocus)
+
+        self.__view = PixelBrowserView(self)
+
+        self.__scroll = Qt.QScrollBar(self)
+        self.__scroll.setTracking(True)
+        self.__scroll.setOrientation(Qt.Qt.Vertical)
+
+        layout = Qt.QHBoxLayout(self)
+        layout.setSpacing(0)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.__view)
+        layout.addWidget(self.__scroll)
+        layout.setStretchFactor(self.__view, 1)
+
+        self.__scroll.valueChanged.connect(self.setPosition)
+        self.__view.pageSizeChanged.connect(self.__pageChanged)
+        self.__view.positionChanged.connect(self.__positionChanged)
+        self.__view.selectionChanged.connect(self.__selectionChanged)
+
+    def __pageChanged(self, pageSize: int):
+        self.__scroll.setPageStep(pageSize)
+        self.__scroll.setRange(0, self.memoryLength() - pageSize)
+
+    def __positionChanged(self, position: int):
+        with blockSignals(self.__scroll):
+            self.__scroll.setValue(position)
+        self.positionChanged.emit(position)
+
+    def __selectionChanged(self, selection: tuple[int, int] | None):
+        self.selectionChanged.emit(selection)
+
+    def selection(self) -> tuple[int, int] | None:
+        """
+        Return the selection.
+
+        Return:
+            A tuple with the position range.
+            The first is included, the second is excluded.
+        """
+        return self.__view.selection()
+
+    def setSelection(self, selection: tuple[int, int] | None):
+        self.__view.setSelection(selection)
+
+    def zoom(self) -> int:
+        return self.__view.zoom()
+
+    def setZoom(self, zoom: int):
+        self.__view.setZoom(zoom)
+
+    def position(self) -> int:
+        return self.__view.position()
+
+    def setPosition(self, position: int):
+        self.__view.setPosition(position)
+
+    def pixelWidth(self) -> int:
+        return self.__view.pixelWidth()
+
+    def setPixelWidth(self, pixelWidth: int):
+        self.__view.setPixelWidth(pixelWidth)
+
+    def memory(self) -> io.IOBase:
+        return self.__view.memory()
+
+    def setMemory(self, memory: io.IOBase):
+        self.__view.setMemory(memory)
+        pageSize = self.__view.pageSize()
+        self.__scroll.setRange(0, self.memoryLength() - pageSize)
+
+    def memoryLength(self) -> int:
+        return self.__view.memoryLength()
+
+    def colorMode(self) -> ImageColorMode:
+        return self.__view.colorMode()
+
+    def setColorMode(self, colorMode: ImageColorMode):
+        self.__view.setColorMode(colorMode)
+
+    def pixelOrder(self) -> ImagePixelOrder:
+        return self.__view.pixelOrder()
+
+    def setPixelOrder(self, pixelOrder: ImagePixelOrder):
+        self.__view.setPixelOrder(pixelOrder)
+
+    def keyPressEvent(self, event: Qt.QKeyEvent):
+        if event.key() == Qt.Qt.Key_Down:
+            self.moveToNextLine()
+        elif event.key() == Qt.Qt.Key_Up:
+            self.moveToPreviousLine()
+        elif event.key() == Qt.Qt.Key_Left:
+            self.moveToPreviousByte()
+        elif event.key() == Qt.Qt.Key_Right:
+            self.moveToNextByte()
+        elif event.key() == Qt.Qt.Key_PageUp:
+            self.moveToPreviousPage()
+        elif event.key() == Qt.Qt.Key_PageDown:
+            self.moveToNextPage()
+
+    def moveToPreviousByte(self):
+        pos = self.__view.position() - 1
+        pos = max(pos, 0)
+        self.__view.setPosition(pos)
+
+    def moveToNextByte(self):
+        pos = self.__view.position() + 1
+        pos = min(pos, self.__view.memoryLength())
+        self.__view.setPosition(pos)
+
+    def moveToPreviousLine(self):
+        pos = self.__view.position() - self.__view.bytesPerLine()
+        pos = max(pos, 0)
+        self.__view.setPosition(pos)
+
+    def moveToNextLine(self):
+        pos = self.__view.position() + self.__view.bytesPerLine()
+        pos = min(pos, self.__view.memoryLength())
+        self.__view.setPosition(pos)
+
+    def moveToPreviousPage(self):
+        pos = self.__view.position() - self.__view.bytesPerLine() * 8
+        pos = max(pos, 0)
+        self.__view.setPosition(pos)
+
+    def moveToNextPage(self):
+        pos = self.__view.position() + self.__view.bytesPerLine() * 8
+        pos = min(pos, self.__view.memoryLength())
+        self.__view.setPosition(pos)

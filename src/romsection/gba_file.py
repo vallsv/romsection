@@ -9,8 +9,8 @@ import typing
 import dataclasses
 import hashlib
 
-from .lz77 import decompress as decompress_lz77
-from .lz77 import dryrun as dryrun_lz77
+from . import lz77
+from . import huffman
 from .array_utils import convert_a1rgb15_to_argb32, convert_8bx1_to_4bx2, convert_to_tiled_8x8
 from .codec import pixels_per_byte_length
 from .model import ByteCodec, DataType, ImageColorMode, ImagePixelOrder, MemoryMap
@@ -35,6 +35,14 @@ class GBAFile:
 
     def memory_map_from_offset(self, byte_offset: int):
         mem = [m for m in self.offsets if m.byte_offset == byte_offset]
+        if len(mem) == 0:
+            raise ValueError(f"No memory map found at 0x{byte_offset:08X}")
+        if len(mem) > 1:
+            raise ValueError(f"Multiple memory map found at 0x{byte_offset:08X}")
+        return mem[0]
+
+    def memory_map_containing_offset(self, byte_offset: int):
+        mem = [m for m in self.offsets if m.byte_offset <= byte_offset < m.byte_end]
         if len(mem) == 0:
             raise ValueError(f"No memory map found at 0x{byte_offset:08X}")
         if len(mem) > 1:
@@ -67,59 +75,55 @@ class GBAFile:
     def size(self):
         return self._size
 
-    def search_for_lz77(
-        self,
+    def search_for_bytes(self,
         offset_from: int,
         offset_to: int,
-        must_stop: typing.Callable[[], bool],
-        on_found: typing.Callable[[MemoryMap], None],
-        on_progress: typing.Callable[[int], None] | None = None,
-        skip_valid_blocks=False,
-    ):
+        data: bytes
+    ) -> list[int]:
         """
-        Scan a range of the memory to find LZ77 valid compressed memory.
+        Search for this `data` sequence of bytes in the ROM.
 
-        Raises:
-            StopIteration: If a stop was requested
+        Return the found offsets.
         """
+        size = len(data)
         f = self._f
         offset = offset_from
-        f.seek(offset, os.SEEK_SET)
-        stream = f
+        result: list[int] = []
         while offset < offset_to:
-            if must_stop():
-                raise StopIteration
-            try:
-                size = dryrun_lz77(
-                    stream,
-                    min_length=16,
-                    max_length=600*400*2,
-                    must_stop=must_stop
-                )
-            except ValueError:
-                size = None
-            except RuntimeError:
-                size = None
-            else:
-                mem = MemoryMap(
-                    byte_offset=offset,
-                    byte_length=stream.tell() - offset,
-                    byte_payload=size,
-                    byte_codec=ByteCodec.LZ77,
-                    data_type=DataType.UNKNOWN,
-                )
-                on_found(mem)
-            if not skip_valid_blocks:
-                offset += 1
-                stream.seek(offset, os.SEEK_SET)
-            else:
-                if size is None:
-                    offset += 1
-                    stream.seek(offset, os.SEEK_SET)
-                else:
-                    offset += size
-            if on_progress is not None:
-                on_progress(offset)
+            f.seek(offset, os.SEEK_SET)
+            d = f.read(size)
+            if len(d) != size:
+                break
+            if d == data:
+                result.append(offset)
+            # FIXME: d can be used to skip even more steps
+            offset += 1
+        return result
+
+    def search_for_bytes_in_data(self,
+        mem: MemoryMap,
+        data: bytes
+    ) -> list[int]:
+        """
+        Search for this `data` sequence of bytes in the ROM.
+
+        Return the found offsets.
+        """
+        decompressed = self.extract_data(mem).tobytes()
+        size = len(data)
+        f = io.BytesIO(decompressed)
+        offset = 0
+        result: list[int] = []
+        while offset < len(data):
+            f.seek(offset, os.SEEK_SET)
+            d = f.read(size)
+            if len(d) != size:
+                break
+            if d == data:
+                result.append(offset)
+            # FIXME: d can be used to skip even more steps
+            offset += 1
+        return result
 
     def extract_raw(self, mem: MemoryMap) -> bytes:
         f = self._f
@@ -130,9 +134,19 @@ class GBAFile:
     def extract_lz77(self, mem: MemoryMap):
         f = self._f
         f.seek(mem.byte_offset, os.SEEK_SET)
-        result = decompress_lz77(f)
+        result = lz77.decompress(f)
         offset_end = f.tell()
         mem.byte_length = offset_end - mem.byte_offset
+        mem.byte_payload = len(result)
+        return result
+
+    def extract_huffman(self, mem: MemoryMap):
+        f = self._f
+        f.seek(mem.byte_offset, os.SEEK_SET)
+        result = huffman.decompress(f)
+        offset_end = f.tell()
+        mem.byte_length = offset_end - mem.byte_offset
+        mem.byte_payload = len(result)
         return result
 
     def extract_data(self, mem: MemoryMap) -> numpy.ndarray:
@@ -146,6 +160,9 @@ class GBAFile:
             result = numpy.frombuffer(raw, dtype=numpy.uint8)
         elif mem.byte_codec == ByteCodec.LZ77:
             result = self.extract_lz77(mem)
+        elif mem.byte_codec == ByteCodec.HUFFMAN:
+            raw = self.extract_huffman(mem)
+            result = numpy.frombuffer(raw, dtype=numpy.uint8)
         return result
 
     def palette_data(self, mem: MemoryMap) -> numpy.ndarray:
@@ -185,6 +202,26 @@ class GBAFile:
         # FIXME: Guess something closer to a square
         return 1, nb_pixels
 
+    def byte_payload(self, mem: MemoryMap) -> int:
+        """Return the size of the data content, in bytes"""
+        if mem.byte_codec in [None, ByteCodec.RAW]:
+            if mem.byte_length is None:
+                raise ValueError(f"Memory map 0x{mem.byte_offset:08X} have inconcistente description")
+            return mem.byte_length
+
+        if mem.byte_payload is not None:
+            return mem.byte_payload
+
+        stream = self._f
+        stream.seek(mem.byte_offset, os.SEEK_SET)
+        if mem.byte_codec == ByteCodec.LZ77:
+            return lz77.dryrun(stream)
+
+        if mem.byte_codec == ByteCodec.HUFFMAN:
+            return huffman.dryrun(stream)
+
+        raise ValueError(f"Memory map 0x{mem.byte_offset:08X} have unexpected codec {mem.byte_codec}")
+
     def image_shape(self, mem: MemoryMap) -> tuple[int, int] | None:
         """Only return the image shape.
 
@@ -193,27 +230,10 @@ class GBAFile:
         if mem.data_type != DataType.IMAGE:
             return None
 
-        if mem.byte_codec in [None, ByteCodec.RAW]:
-            if mem.byte_length is None:
-                raise ValueError(f"Memory map 0x{mem.byte_offset:08X} have inconcistente description")
-            size = mem.byte_length
-        else:
-            if mem.byte_payload is None:
-                if mem.byte_codec == ByteCodec.LZ77:
-                    f = self._f
-                    f.seek(mem.byte_offset, os.SEEK_SET)
-                    try:
-                        size = dryrun_lz77(f)
-                    except Exception:
-                        return None
-                else:
-                    raise ValueError(f"Memory map 0x{mem.byte_offset:08X} have inconcistente description")
-            else:
-                size = mem.byte_payload
-
         if mem.image_shape is not None:
             return mem.image_shape
         else:
+            size = self.byte_payload(mem)
             nb_pixels = pixels_per_byte_length(mem.image_color_mode or ImageColorMode.INDEXED_8BIT, size)
             return self.guess_first_image_shape(nb_pixels)
 
@@ -270,6 +290,9 @@ class GBAFile:
             except Exception:
                 logging.warning("Error while processing RGB data from palette", exc_info=True)
                 pass
+        else:
+            if mem.image_color_mode == ImageColorMode.INDEXED_4BIT:
+                data *= 16
 
         return data
 
@@ -320,5 +343,9 @@ class GBAFile:
             except Exception:
                 logging.warning("Error while processing RGB data from palette", exc_info=True)
                 pass
+        else:
+            if mem.image_color_mode == ImageColorMode.INDEXED_4BIT:
+                # Better grey scale
+                data *= 16
 
         return data

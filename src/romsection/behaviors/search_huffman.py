@@ -1,45 +1,45 @@
+import typing
 import io
 import queue
 from PyQt5 import Qt
 
+from ..gba_file import GBAFile
 from ..model import MemoryMap, ByteCodec, DataType
 from . import search
 from .behavior import Behavior
-from .. import lz77
+from .. import huffman
 
 
-class SearchLZ77Runnable(search.SearchRunnable):
+class SearchHuffmanRunnable(search.SearchRunnable):
     def title(self) -> str:
-        return "Searching for LZ77 content..."
+        return "Searching for Huffman content..."
 
     def _checkStream(self, romOffset: int, stream: io.IOBase) -> bool:
         """
         Check the stream at the place it is.
         """
         start = stream.tell()
-        size = lz77.dryrun(
+        size = huffman.dryrun(
             stream,
             min_length=16,
-            max_length=600*400*2,
+            max_length=1024*24,
             must_stop=self._mustStop
         )
-        if size is None:
-            return False
         byteLength = stream.tell() - start
         mem = MemoryMap(
             byte_offset=romOffset,
             byte_length=byteLength,
             byte_payload=size,
-            byte_codec=ByteCodec.LZ77,
+            byte_codec=ByteCodec.HUFFMAN,
             data_type=DataType.UNKNOWN,
         )
         self._onFound(mem)
         return True
 
 
-class SearchL777Content(Behavior):
+class SearchHuffmanContent(Behavior):
     """
-    Search for LZ77 content.
+    Search for huffman content.
     """
     def run(self) -> None:
         context = self.context()
@@ -62,17 +62,17 @@ class SearchL777Content(Behavior):
         def flushQueue():
             nonlocal nbFound
             try:
-                lz77mem = memoryMapQueue.get(block=False)
+                newMem = memoryMapQueue.get(block=False)
                 if nbFound == 0:
                     # At the first found we remove the parent memory
                     memoryMapList.removeObject(mem)
                 nbFound += 1
-                index = memoryMapList.indexAfterOffset(lz77mem.byte_offset)
-                memoryMapList.insertObject(index, lz77mem)
+                index = memoryMapList.indexAfterOffset(newMem.byte_offset)
+                memoryMapList.insertObject(index, newMem)
             except queue.Empty:
                 pass
 
-        runnable = SearchLZ77Runnable(
+        runnable = SearchHuffmanRunnable(
             rom=rom,
             memoryRange=(mem.byte_offset, mem.byte_end),
             queue=memoryMapQueue,
@@ -95,5 +95,5 @@ class SearchL777Content(Behavior):
         Qt.QMessageBox.information(
             context,
             "Seatch result",
-            f"{nbFound} potential LZ77 location was found"
+            f"{nbFound} potential huffman location was found"
         )

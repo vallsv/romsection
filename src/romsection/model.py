@@ -5,34 +5,99 @@ import dataclasses
 
 class ByteCodec(enum.Enum):
     RAW = enum.auto()
+    """Uncompressed memory"""
+
     LZ77 = enum.auto()
+    """Compressed as LZ77"""
+
+    HUFFMAN = enum.auto()
+    """Compressed as huffman"""
+
+
+class DataTypeGroup(enum.Enum):
+    IMAGE = enum.auto()
+    PALETTE = enum.auto()
+    TILE_SET = enum.auto()
+    SAMPLE = enum.auto()
+    MUSIC = enum.auto()
+    OTHER = enum.auto()
+
+
+@dataclasses.dataclass(frozen=True, eq=False)
+class DataTypeDesc:
+    group: DataTypeGroup
 
 
 class DataType(enum.Enum):
-    IMAGE = enum.auto()
+    IMAGE = DataTypeDesc(group=DataTypeGroup.IMAGE)
     """Memory map which can be represented as a image."""
 
-    PALETTE = enum.auto()
+    PALETTE = DataTypeDesc(group=DataTypeGroup.PALETTE)
     """Memory map compound by a set of colors."""
 
-    TILE_SET = enum.auto()
+    TILE_SET = DataTypeDesc(group=DataTypeGroup.TILE_SET)
     """
     Memory map compound by a set of tiles of the same size.
 
     The properties of the IMAGE are used, but are applied to a single tile.
     """
 
-    UNKNOWN = enum.auto()
+    SAMPLE_INT8 = DataTypeDesc(group=DataTypeGroup.SAMPLE)
+    """Sample raw data encoded in int8."""
+
+    SAMPLE_SAPPY = DataTypeDesc(group=DataTypeGroup.SAMPLE)
+    """
+    Sample as stored by sappy.
+
+    See https://www.romhacking.net/documents/462/
+    """
+
+    MUSIC_INSTRUMENT_SAPPY = DataTypeDesc(group=DataTypeGroup.MUSIC)
+    """
+    Music instrument bank as stored by sappy
+
+    See https://www.romhacking.net/documents/462/
+    """
+
+    MUSIC_SONG_TABLE_SAPPY = DataTypeDesc(group=DataTypeGroup.MUSIC)
+    """
+    Music song pointer table as stored by sappy
+
+    See https://www.romhacking.net/documents/462/
+    """
+
+    MUSIC_SONG_HEADER_SAPPY = DataTypeDesc(group=DataTypeGroup.MUSIC)
+    """
+    Music song pointer table as stored by sappy
+
+    See https://www.romhacking.net/documents/462/
+    """
+
+    MUSIC_TRACK_SAPPY = DataTypeDesc(group=DataTypeGroup.MUSIC)
+    """
+    Music song track as stored by sappy
+
+    See https://www.romhacking.net/documents/462/
+    """
+
+    MUSIC_KEY_SPLIT_TABLE_SAPPY = DataTypeDesc(group=DataTypeGroup.MUSIC)
+    """
+    Music key split table by sappy
+
+    See https://www.romhacking.net/documents/462/
+    """
+
+    UNKNOWN = DataTypeDesc(group=DataTypeGroup.OTHER)
     """Memory map which is not yet identified."""
 
-    GBA_ROM_HEADER = enum.auto()
+    GBA_ROM_HEADER = DataTypeDesc(group=DataTypeGroup.OTHER)
     """
     Memory map containing GBA description.
 
     See http://problemkaputt.de/gbatek.htm#gbacartridgeheader
     """
 
-    PADDING = enum.auto()
+    PADDING = DataTypeDesc(group=DataTypeGroup.OTHER)
     """
     Memory map which fill the memory with anything (usually 0) for
     better alignement of the next memory map.
@@ -134,7 +199,7 @@ class MemoryMap:
 
     @property
     def byte_end(self) -> int:
-        return self.byte_offset + self.byte_length
+        return self.byte_offset + (self.byte_length or 0)
 
     def to_dict(self) -> dict[str, typing.Any]:
         description:  dict[str, typing.Any] = {

@@ -2,65 +2,86 @@ from __future__ import annotations
 import io
 import lru
 from PyQt5 import Qt
+from typing import Callable
 
 
 class HexaTableModel(Qt.QAbstractTableModel):
-    """Table of hexadecimal rendering of byteq data.
+    """Table of hexadecimal rendering of byte data.
 
     Bytes are displayed one by one as a hexadecimal viewer.
 
-    The 16th first columns display bytes as hexadecimal, the last column
-    displays the same data as ASCII.
+    The first columns display bytes as hexadecimal, the last column
+    displays the same data as custom description.
     """
+
+    AddressRole = Qt.Qt.UserRole
+
+    ItemAddressRole = Qt.Qt.UserRole + 1
+
+    ItemData = Qt.Qt.UserRole + 2
 
     def __init__(self, parent: Qt.QWidget | None = None):
         Qt.QAbstractTableModel.__init__(self, parent)
         self.__data: bytes | None = None
         self.__address: int = 0
-        self.__start: int = 0
+        self.__itemSize: int = 16
         self.__length: int = 0
-        self.__padding: int = 0
         self.__font = Qt.QFontDatabase.systemFont(Qt.QFontDatabase.FixedFont)
         self.__palette = Qt.QPalette()
-        self.__ascii: lru.LRU[int, str] = lru.LRU(256)
+        self.__description: lru.LRU[int, str] = lru.LRU(256)
+        self.__descriptionMeth: Callable[[int, bytes], str] | None = None
+
+    def itemSize(self) -> int:
+        return self.__itemSize
+
+    def setItemSize(self, itemSize: int):
+        self.beginResetModel()
+        self.__itemSize = itemSize
+        self.endResetModel()
 
     def rowCount(self, parent_idx=None):
         """Returns number of rows to be displayed in table"""
         if self.__data is None or self.__length == 0:
             return 0
-        return ((self.__length - 1) >> 4) + 1
+        nb, remaining = divmod(self.__length, self.__itemSize)
+        return nb + int(remaining != 0)
 
     def columnCount(self, parent_idx=None):
         """Returns number of columns to be displayed in table"""
-        return 0x10 + 1
+        return self.__itemSize + 1
 
-    def _getAscii(self, row: int) -> str:
-        if self.__data is None:
-            return ""
-
-        ascii = self.__ascii.get(row, None)
+    def _getCachedDescription(self, row: int) -> str:
+        ascii = self.__description.get(row, None)
         if ascii is not None:
             return ascii
 
-        start = row << 4
-        text = ""
-        for i in range(0x10):
-            pos = start + i
-            if pos >= self.__length:
-                break
-            if pos < self.__padding:
-                text += " "
-                continue
-            value = self.__data[pos - self.__padding]
-            if value > 0x20 and value < 0x7F:
-                text += chr(value)
+        if self.__data is None:
+            text = "No data"
+        else:
+            start = row * self.__itemSize
+            if start + self.__itemSize > self.__length:
+                text = "Invalid size"
             else:
-                text += "."
-
-        self.__ascii[row] = text
+                data = self.__data[start:start + self.__itemSize]
+                text = self._getDescription(row, data)
+        self.__description[row] = text
         return text
 
-    def data(self, index, role=Qt.Qt.DisplayRole):
+    def setDescriptionMethod(self, meth: Callable[[int, bytes], str] | None):
+        self.beginResetModel()
+        self.__descriptionMeth = meth
+        self.__description.clear()
+        self.endResetModel()
+
+    def _getDescription(self, row: int, data: bytes) -> str:
+        descriptionMeth = self.__descriptionMeth
+        if descriptionMeth is not None:
+            description = descriptionMeth(row, data)
+            return f"#{row + 1:03d} {description}"
+        else:
+            return f"#{row + 1:03d}"
+
+    def data(self, index: Qt.QModelIndex, role=Qt.Qt.DisplayRole):
         """QAbstractTableModel method to access data values
         in the format ready to be displayed"""
         if not index.isValid():
@@ -72,48 +93,56 @@ class HexaTableModel(Qt.QAbstractTableModel):
         row = index.row()
         column = index.column()
 
-        if role == Qt.Qt.UserRole:
-            if column == 0x10:
+        if role == self.AddressRole:
+            pos = (row * self.__itemSize) + column
+            if pos > self.__length:
                 return None
-            pos = (row << 4) + column
-            if pos < self.__padding:
+            return self.__address + pos
+
+        elif role == self.ItemAddressRole:
+            pos = (row * self.__itemSize) + column
+            if pos > self.__length:
                 return None
-            if pos < self.__length:
-                return self.__start + pos
+            return self.__address + row * self.__itemSize
+
+        elif role == self.ItemData:
+            start = (row * self.__itemSize)
+            if start + self.__itemSize > self.__length:
+                return None
+            return self.__data[start:start + self.__itemSize]
+
+        elif role == Qt.Qt.DisplayRole:
+            if column == self.__itemSize:
+                return self._getCachedDescription(row)
+            else:
+                pos = (row * self.__itemSize) + column
+                if pos < self.__length:
+                    value = self.__data[pos]
+                    return f"{value:02X}"
+                else:
+                    return ""
+
+        elif role == Qt.Qt.FontRole:
+            if column < self.__itemSize:
+                return self.__font
             else:
                 return None
 
         elif role == Qt.Qt.ForegroundRole:
-            if column == 0x10:
+            if column == self.__itemSize:
                 return Qt.QColorConstants.Black
 
-        elif role == Qt.Qt.DisplayRole:
-            if column == 0x10:
-                ascii = self._getAscii(row)
-                return ascii
-            else:
-                pos = (row << 4) + column
-                if pos < self.__padding:
-                    return ""
-                if pos < self.__length:
-                    value = self.__data[pos - self.__padding]
-                    return f"{value:02X}"
-                else:
-                    return ""
-        elif role == Qt.Qt.FontRole:
-            return self.__font
-
         elif role == Qt.Qt.BackgroundRole:
-            pos = (row << 4) + column
-            if column == 0x10:
+            pos = (row * self.__itemSize) + column
+            if column == self.__itemSize:
                 return self.__palette.color(Qt.QPalette.Disabled, Qt.QPalette.Window)
-            elif pos < self.__padding or pos >= self.__length:
+            elif pos >= self.__length:
                 return self.__palette.color(Qt.QPalette.Disabled, Qt.QPalette.ButtonText)
             else:
                 return None
 
         elif role == Qt.Qt.TextAlignmentRole:
-            if column == 0x10:
+            if column == self.__itemSize:
                 return Qt.Qt.AlignLeft | Qt.Qt.AlignVCenter
             else:
                 return Qt.Qt.AlignCenter
@@ -129,20 +158,26 @@ class HexaTableModel(Qt.QAbstractTableModel):
 
         if role == Qt.Qt.DisplayRole:
             if orientation == Qt.Qt.Vertical:
-                address = self.__start + (section << 4)
+                address = self.__address + (section * self.__itemSize)
                 return f"{address:08X}"
             if orientation == Qt.Qt.Horizontal:
-                if section == 0x10:
-                    return "ASCII"
+                if section == self.__itemSize:
+                    return "Description"
                 else:
                     return f"{section:02X}"
         elif role == Qt.Qt.FontRole:
-            return self.__font
+            if orientation == Qt.Qt.Vertical:
+                return self.__font
+            if orientation == Qt.Qt.Horizontal:
+                if section != self.__itemSize:
+                    return self.__font
+                else:
+                    return None
         elif role == Qt.Qt.TextAlignmentRole:
             if orientation == Qt.Qt.Vertical:
                 return Qt.Qt.AlignRight | Qt.Qt.AlignVCenter
             if orientation == Qt.Qt.Horizontal:
-                if section == 0x10:
+                if section == self.__itemSize:
                     return Qt.Qt.AlignLeft | Qt.Qt.AlignVCenter
                 else:
                     return Qt.Qt.AlignCenter
@@ -153,11 +188,11 @@ class HexaTableModel(Qt.QAbstractTableModel):
         is editable or not.
         """
         column = index.column()
-        if column == 0x10:
-            return Qt.Qt.NoItemFlags
+        if column == self.__itemSize:
+            return Qt.QAbstractTableModel.flags(self, index)
         row = index.row()
-        pos = (row << 4) + column
-        if pos < self.__padding or pos >= self.__length:
+        pos = (row * self.__itemSize) + column
+        if pos >= self.__length:
             return Qt.Qt.NoItemFlags
         return Qt.QAbstractTableModel.flags(self, index)
 
@@ -166,19 +201,14 @@ class HexaTableModel(Qt.QAbstractTableModel):
         self.beginResetModel()
         self.__data = data
         self.__address = address
-        self.__start = (address >> 4) << 4
-        self.__padding = self.__address - self.__start
-        if data is not None:
-            self.__length = self.__padding + len(data)
-        else:
-            self.__length = 0
-        self.__ascii.clear()
+        self.__length = len(data) if data is not None else 0
+        self.__description.clear()
         self.endResetModel()
 
     def indexFromAddress(self, address: int) -> Qt.QModelIndex:
         if address < self.__address or address >= self.__address + self.__length:
             return Qt.QModelIndex()
-        row, col = divmod(address - self.__start, 16)
+        row, col = divmod(address - self.__address, self.__itemSize)
         return self.index(row, col)
 
     def bytes(self) -> bytes | None:
@@ -186,10 +216,14 @@ class HexaTableModel(Qt.QAbstractTableModel):
         return self.__data
 
 
-class HexaView(Qt.QTableView):
-    """TableView using HexaTableModel as default model.
+class HexaArrayView(Qt.QTableView):
+    """
+    TableView to show a 1D tablarray of binary data.
 
-    It customs the column size to provide a better layout.
+    The memory input is split into multiple items of the
+    same size.
+
+    A basic description can be assosiated.
     """
 
     def __init__(self, parent: Qt.QWidget | None = None):
@@ -215,26 +249,11 @@ class HexaView(Qt.QTableView):
         self.model().setBytes(data, address=address)
         self.__fixHeader()
 
-    def setData(self, data: bytes | None, address: int=0):
-        """Set the binary data.
-
-        FIXME: Deprecated
-        """
-        self.model().setBytes(data, address=address)
-        self.__fixHeader()
-
     def __fixHeader(self):
         """Update the view according to the state of the auto-resize"""
         header = self.horizontalHeader()
         header.setDefaultSectionSize(30)
         header.setStretchLastSection(True)
-        for i in range(0x10):
-            header.setSectionResizeMode(i, Qt.QHeaderView.Fixed)
-        header.setSectionResizeMode(0x10, Qt.QHeaderView.Stretch)
-
-    def selectedOffset(self) -> int | None:
-        """FIXME: Deprecated"""
-        return self.selectedAddress()
 
     def selectedAddress(self) -> int | None:
         """Return the selected address"""
@@ -242,7 +261,26 @@ class HexaView(Qt.QTableView):
         items = model.selectedIndexes()
         if len(items) != 1:
             return None
-        return items[0].data(Qt.Qt.UserRole)
+        index = items[0]
+        return index.data(HexaTableModel.AddressRole)
+
+    def selectedItemAddress(self) -> int | None:
+        """Return the selected address"""
+        model = self.selectionModel()
+        items = model.selectedIndexes()
+        if len(items) != 1:
+            return None
+        index = items[0]
+        return index.data(HexaTableModel.ItemAddressRole)
+
+    def selectedItemData(self) -> bytes | None:
+        """Return the selected address"""
+        model = self.selectionModel()
+        items = model.selectedIndexes()
+        if len(items) != 1:
+            return None
+        index = items[0]
+        return index.data(HexaTableModel.ItemData)
 
     def selectAddress(self, address: int | None):
         """Set the selected address"""
@@ -253,18 +291,3 @@ class HexaView(Qt.QTableView):
         model = self.model()
         index = model.indexFromAddress(address)
         selectionModel.select(index, Qt.QItemSelectionModel.ClearAndSelect)
-
-    def setAddressSelection(self, selection: tuple[int, int] | None):
-        # FIXME: Implement a full selection
-        if selection is None:
-            self.selectAddress(None)
-        else:
-            size = selection[1] - selection[0]
-            if size == 1:
-                address = selection[0]
-                self.selectAddress(address)
-                model = self.model()
-                index = model.indexFromAddress(address)
-                self.scrollTo(index)
-            else:
-                self.selectAddress(None)

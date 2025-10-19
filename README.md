@@ -13,12 +13,13 @@ That's tuff process.
 
 # Features
 
-- Image with indexed 16 or 256 colors
+- Image
+   - Indexed 16 or 256 colors
+   - 8x8 tiled memory layout
 - Palette in RGB 16 bits
-- LZ77 compression
-- 8x8 tiled memory layout
-- Hexa and pixel browser for unidentified memory
-- Viewer for image, palette, tile set, GBA header
+- Data compressed in LZ77
+- Hexa, pixel, audio sample browser for unidentified memory
+- Viewer for image, palette, tile set, sample, few music table, GBA header
 
 # Install
 
@@ -42,3 +43,4 @@ aspects of the GBA.
 - [GBA LZ77 codec in cpp](https://github.com/lunasorcery/gba-lz77)
 - [Nintenlord Hacking](https://github.com/TimoVesalainen/Nintenlord.Hacking)
 - [Decoding the ARM7TDMI instruction set](https://www.gregorygaines.com/blog/decoding-the-arm7tdmi-instruction-set-game-boy-advance/)
+- [GBAC BinarySerializer.Nintendo](https://github.com/BinarySerializer/BinarySerializer.Nintendo)
