@@ -95,14 +95,13 @@ def _read_tokens(tree_data: bytes) -> dict[bytes, int]:
     stack = [(b"", 0, False)]
     tokens: dict[bytes, int] = {}
 
-    nb_max = 256 * 2
-
+    nb_max = 256 * 4
     for key, index, is_data in stack:
         nb_max -= 1
         if nb_max < 0:
-            raise ValueError("Not a valid GBA huffman stream")
+            raise ValueError("Not a valid GBA huffman stream: Loop detected")
         if index >= len(tree_data):
-            raise ValueError("Not a valid GBA huffman stream")
+            raise ValueError("Not a valid GBA huffman stream: Access outside of the tree")
         d = tree_data[index]
         if is_data:
             tokens[key] = d
@@ -111,6 +110,11 @@ def _read_tokens(tree_data: bytes) -> dict[bytes, int]:
             r_is_data = (d & 0x40) != 0
             offset = d & 0x3F
             next_index = index + (index & 1) + 1 + offset * 2
+            if next_index + 1 > len(tree_data):
+                # Note: Dataset 005A97A4h from "Tactics Ogre: The Knight of Lodise USA"
+                #       fall down here, but still it can be decoded
+                print(f"WARNING: Skip access outside of the data tree ({d:02X}, {index=})")
+                continue
             stack.append((key + b"0", next_index, l_is_data))
             stack.append((key + b"1", next_index + 1, r_is_data))
 
