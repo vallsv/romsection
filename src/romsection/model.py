@@ -134,6 +134,12 @@ class ImagePixelOrder(enum.Enum):
     TILED_8X8 = enum.auto()
 
 
+class SampleCodec(enum.Enum):
+    """Codec for the audio sample"""
+    SAMPLE_INT8 = enum.auto()
+    SAMPLE_UINT8 = enum.auto()
+
+
 @dataclasses.dataclass
 class MemoryMap:
     byte_offset: int
@@ -192,6 +198,11 @@ class MemoryMap:
     an indexed color mode.
     """
 
+    sample_codec: SampleCodec | None = None
+    """
+    Codec for the audio sample
+    """
+
     comment: str | None = None
     """
     Human comment
@@ -223,6 +234,8 @@ class MemoryMap:
             description["image_palette_offset"] = self.image_palette_offset
         if self.palette_size is not None:
             description["palette_size"] = self.palette_size
+        if self.sample_codec is not None:
+            description["sample_codec"] = self.sample_codec.name
         if self.comment is not None:
             description["comment"] = self.comment
         return description
@@ -242,6 +255,7 @@ class MemoryMap:
         image_color_mode = description.get("image_color_mode")
         image_pixel_order = description.get("image_pixel_order")
         image_palette_offset = description.get("image_palette_offset")
+        sample_codec = description.get("sample_codec")
         if image_shape is not None:
             image_shape = tuple(image_shape)
         if image_color_mode is not None:
@@ -249,6 +263,8 @@ class MemoryMap:
         if image_pixel_order is not None:
             image_pixel_order = ImagePixelOrder[image_pixel_order]
         palette_size = description.get("palette_size")
+        if sample_codec is not None:
+            sample_codec = SampleCodec[sample_codec]
         comment = description.get("comment")
         return MemoryMap(
             byte_offset=byte_offset,
@@ -261,5 +277,6 @@ class MemoryMap:
             image_pixel_order=image_pixel_order,
             image_palette_offset=image_palette_offset,
             palette_size=palette_size,
+            sample_codec=sample_codec,
             comment=comment,
         )

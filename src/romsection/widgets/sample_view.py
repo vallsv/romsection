@@ -2,7 +2,7 @@ import io
 import numpy
 from PyQt5 import Qt
 
-from ..model import MemoryMap, DataType
+from ..model import MemoryMap, DataType, SampleCodec
 from ..gba_file import GBAFile
 from .. import sappy_utils
 from .sample_browser_widget import SampleBrowserWidget
@@ -94,7 +94,15 @@ class SampleView(Qt.QWidget):
             sample = sappy_utils.SampleHeader.parse(header)
             memory = io.BytesIO(data[16:])
             self.__wave.setPosition(0)
-            self.__wave.setSampleCodec(SampleCodecs.INT8)
+
+            sampleCodec = mem.sample_codec
+            if sampleCodec in (None, SampleCodec.SAMPLE_INT8):
+                self.__wave.setSampleCodec(SampleCodecs.INT8)
+            elif sampleCodec == SampleCodec.SAMPLE_UINT8:
+                self.__wave.setSampleCodec(SampleCodecs.UINT8)
+            else:
+                assert False, f"Unsupported {sampleCodec}"
+
             self.__wave.setMemory(memory)
 
             other_flags = sample.flags & 0xBF
