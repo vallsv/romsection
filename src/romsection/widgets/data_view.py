@@ -95,6 +95,10 @@ class DataView(Qt.QWidget):
         self.__searchSappyKeySplitTable.setContext(context)
         self.__searchSappySample = sappy_content.SearchSappySampleFromInstrumentTable()
         self.__searchSappySample.setContext(context)
+        self.__searchInstrumentAddress = sappy_content.SearchInstrumentAddress()
+        self.__searchInstrumentAddress.setContext(context)
+        self.__searchSongHeaderAddress = sappy_content.SearchSongHeaderAddress()
+        self.__searchSongHeaderAddress.setContext(context)
 
         spacer = Qt.QWidget(self.__toolbar)
         spacer.setSizePolicy(Qt.QSizePolicy.Expanding, Qt.QSizePolicy.Expanding)
@@ -124,6 +128,15 @@ class DataView(Qt.QWidget):
         action.setIcon(Qt.QIcon("icons:music.png"))
         toolMenu.addAction(action)
 
+        toolMenu.addSection("From sappy song header")
+
+        action = Qt.QAction(self)
+        action.triggered.connect(self.__searchSongHeaderAddress.run)
+        action.setText("Search selected song header")
+        action.setToolTip("Search the selected song header")
+        action.setIcon(Qt.QIcon("icons:music.png"))
+        toolMenu.addAction(action)
+
         toolMenu.addSection("From sappy instrument table")
 
         action = Qt.QAction(self)
@@ -138,6 +151,13 @@ class DataView(Qt.QWidget):
         action.setText("Extract samples")
         action.setToolTip("Extract referenced samples from instrument table")
         action.setIcon(Qt.QIcon("icons:sample.png"))
+        toolMenu.addAction(action)
+
+        action = Qt.QAction(self)
+        action.triggered.connect(self.__searchInstrumentAddress.run)
+        action.setText("Search selected instrument address")
+        action.setToolTip("Search the selected instrument address")
+        action.setIcon(Qt.QIcon("icons:instrument.png"))
         toolMenu.addAction(action)
 
         self.__table = HexaArrayView(self)
@@ -159,6 +179,9 @@ class DataView(Qt.QWidget):
             return
         address = self.__table.selectedItemAddress()
         dataType = self.__memoryMap.data_type if self.__memoryMap else None
+        if dataType == DataType.MUSIC_INSTRUMENT_SAPPY:
+            self.__searchInstrumentAddress.setAddress(address)
+
         desc = DESCRIPTION.get(dataType)
         if desc is None:
             self.__hexaStruct.setStruct(None)
@@ -222,6 +245,8 @@ class DataView(Qt.QWidget):
             self.__hexaStruct.setVisible(True)
             self.__hexaStruct.setStruct(None)
         else:
+            if dataType == DataType.MUSIC_SONG_HEADER_SAPPY:
+                self.__searchSongHeaderAddress.setAddress(mem.byte_offset)
             dataStruct = desc.struct.parse_struct(data)
             self.__table.setVisible(False)
             self.__hexaStruct.setVisible(True)

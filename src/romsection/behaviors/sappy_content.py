@@ -38,6 +38,56 @@ class SearchSappyTag(Behavior):
             )
 
 
+class SearchContent(Behavior):
+    NAME = "content"
+
+    def __init__(self):
+        Behavior.__init__(self)
+        self.__data = None
+
+    def setData(self, data: bytes):
+        self.__data = data
+
+    def setAddress(self, address: int):
+        dataAddress = (address + 0x8000000).to_bytes(4, 'little')
+        self.setData(dataAddress)
+
+    def run(self):
+        if self.__data is None:
+            Qt.QMessageBox.information(
+                context,
+                "Result",
+                "No content selected"
+            )
+            return
+        context = self.context()
+        rom = context.rom()
+        result = rom.search_for_bytes(0, rom.size, self.__data)
+
+        if result:
+            offsets = [format_address(offset) for offset in result]
+            string = ", ".join(offsets)
+            Qt.QMessageBox.information(
+                context,
+                "Result",
+                f"The following offsets looks to use this {self.NAME}:\n{string}"
+            )
+        else:
+            Qt.QMessageBox.information(
+                context,
+                "Result",
+                "Nothing was found"
+            )
+
+
+class SearchInstrumentAddress(SearchContent):
+    NAME = "SAPPY instrument address"
+
+
+class SearchSongHeaderAddress(SearchContent):
+    NAME = "SAPPY song header"
+
+
 class SplitSappySample(Behavior):
 
     def setOffset(self, offset: int):
