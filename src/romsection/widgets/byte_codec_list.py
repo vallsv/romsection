@@ -18,21 +18,25 @@ class ByteCodecList(Qt.QListWidget):
         item = Qt.QListWidgetItem()
         item.setText(f"Raw")
         item.setData(Qt.Qt.UserRole, ByteCodec.RAW)
+        item.setIcon(Qt.QIcon("icons:empty.png"))
         self.addItem(item)
 
         item = Qt.QListWidgetItem()
         item.setText(f"LZ77")
         item.setData(Qt.Qt.UserRole, ByteCodec.LZ77)
+        item.setIcon(Qt.QIcon("icons:lz77.png"))
         self.addItem(item)
 
         item = Qt.QListWidgetItem()
         item.setText(f"Huffman")
         item.setData(Qt.Qt.UserRole, ByteCodec.HUFFMAN)
+        item.setIcon(Qt.QIcon("icons:huffman.png"))
         self.addItem(item)
 
         item = Qt.QListWidgetItem()
         item.setText(f"Huffman over LZ77")
         item.setData(Qt.Qt.UserRole, ByteCodec.HUFFMAN_OVER_LZ77)
+        item.setIcon(Qt.QIcon("icons:huffman_lz77.png"))
         self.addItem(item)
 
         rect = self.visualItemRect(item)
