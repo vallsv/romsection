@@ -78,7 +78,7 @@ class ReplaceUnknownByPadding(Behavior):
                 for mem in memoryMapList:
                     if mem.data_type != DataType.UNKNOWN:
                         continue
-                    if mem.byte_codec != ByteCodec.RAW:
+                    if mem.byte_codec not in (None, ByteCodec.RAW):
                         continue
                     if mem.byte_length > 3:
                         continue
