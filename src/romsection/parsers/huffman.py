@@ -32,7 +32,7 @@ from collections.abc import Callable
 def _read_u8(f):
     v = f.read(1)
     if len(v) == 0:
-        raise ValueError("Not a valid GBA LZ77 stream")
+        raise ValueError("Not a valid GBA huffman stream")
     return v[0]
 
 
