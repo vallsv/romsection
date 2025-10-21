@@ -7,6 +7,7 @@ from ..qt_utils import blockSignals
 from ..gba_file import GBAFile
 from ..behaviors import sappy_content
 from ..behaviors import lz77_content
+from ..behaviors import rl_content
 from ..format_utils import format_address as f_address
 from ..model import MemoryMap, ByteCodec, DataType
 from .sample_browser_widget import SampleBrowserWidget
@@ -166,6 +167,9 @@ class DataBrowser(Qt.QWidget):
 
         self.__splitLZ77Content = lz77_content.SplitLZ77Content()
         self.__splitLZ77Content.setContext(context)
+
+        self.__splitRlContent = rl_content.SplitRlContent()
+        self.__splitRlContent.setContext(context)
 
         action = Qt.QAction(self)
         action.setIcon(Qt.QIcon("icons:hexa.png"))
@@ -454,11 +458,18 @@ class DataBrowser(Qt.QWidget):
 
         self.__splitSappySample.setOffset(offset)
         self.__splitLZ77Content.setOffset(offset)
+        self.__splitRlContent.setOffset(offset)
 
         split = Qt.QAction(menu)
         split.setText("Extract LZ77 content")
         split.setIcon(Qt.QIcon("icons:lz77.png"))
         split.triggered.connect(self.__splitLZ77Content.run)
+        menu.addAction(split)
+
+        split = Qt.QAction(menu)
+        split.setText("Extract RL content")
+        split.setIcon(Qt.QIcon("icons:rl.png"))
+        split.triggered.connect(self.__splitRlContent.run)
         menu.addAction(split)
 
         split = Qt.QAction(menu)

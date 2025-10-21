@@ -13,6 +13,9 @@ class ByteCodec(enum.Enum):
     HUFFMAN = enum.auto()
     """Compressed as huffman"""
 
+    RL = enum.auto()
+    """Compressed as run-length"""
+
     HUFFMAN_OVER_LZ77 = enum.auto()
     """
     Compressed as huffman over LZ77.

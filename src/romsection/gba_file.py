@@ -11,6 +11,7 @@ import hashlib
 
 from .parsers import lz77
 from .parsers import huffman
+from .parsers import rl
 from .array_utils import convert_a1rgb15_to_argb32, convert_8bx1_to_4bx2, convert_to_tiled_8x8
 from .codec import pixels_per_byte_length
 from .model import ByteCodec, DataType, ImageColorMode, ImagePixelOrder, MemoryMap
@@ -150,6 +151,8 @@ class GBAFile:
             result = lz77.decompress(stream)
         elif byte_codec == ByteCodec.HUFFMAN:
             result = huffman.decompress(stream)
+        elif byte_codec == ByteCodec.RL:
+            result = rl.decompress(stream)
         elif byte_codec == ByteCodec.HUFFMAN_OVER_LZ77:
             intermediate = huffman.decompress(stream)
             sream2 = io.BytesIO(intermediate)
@@ -211,19 +214,26 @@ class GBAFile:
             return mem.byte_payload
 
         stream = self._f
+
         stream.seek(mem.byte_offset, os.SEEK_SET)
-        if mem.byte_codec == ByteCodec.LZ77:
-            return lz77.dryrun(stream)
+        byte_codec = mem.byte_codec
 
-        if mem.byte_codec == ByteCodec.HUFFMAN:
-            return huffman.dryrun(stream)
-
-        if mem.byte_codec == ByteCodec.HUFFMAN_OVER_LZ77:
+        if byte_codec == ByteCodec.LZ77:
+            size = lz77.dryrun(stream)
+        elif byte_codec == ByteCodec.HUFFMAN:
+            size = huffman.dryrun(stream)
+        elif byte_codec == ByteCodec.RL:
+            size = rl.dryrun(stream)
+        elif byte_codec == ByteCodec.HUFFMAN_OVER_LZ77:
             intermediate = huffman.decompress(stream)
-            sream2 = io.BytesIO(intermediate)
-            return lz77.dryrun(sream2)
+            stream2 = io.BytesIO(intermediate)
+            size = lz77.dryrun(stream2)
+        else:
+            raise ValueError(f"Memory map 0x{mem.byte_offset:08X} have unexpected codec {mem.byte_codec}")
 
-        raise ValueError(f"Memory map 0x{mem.byte_offset:08X} have unexpected codec {mem.byte_codec}")
+        byte_end = stream.tell()
+        mem.byte_length = byte_end - mem.byte_offset
+        return size
 
     def image_shape(self, mem: MemoryMap) -> tuple[int, int] | None:
         """Only return the image shape.

@@ -34,6 +34,12 @@ class ByteCodecList(Qt.QListWidget):
         self.addItem(item)
 
         item = Qt.QListWidgetItem()
+        item.setText(f"Run-lenght")
+        item.setData(Qt.Qt.UserRole, ByteCodec.RL)
+        item.setIcon(Qt.QIcon("icons:rl.png"))
+        self.addItem(item)
+
+        item = Qt.QListWidgetItem()
         item.setText(f"Huffman over LZ77")
         item.setData(Qt.Qt.UserRole, ByteCodec.HUFFMAN_OVER_LZ77)
         item.setIcon(Qt.QIcon("icons:huffman_lz77.png"))

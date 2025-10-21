@@ -109,6 +109,8 @@ class MemoryMapProxyModel(Qt.QSortFilterProxyModel):
                 byteCodec = mem.byte_codec
                 if byteCodec is None or byteCodec == ByteCodec.RAW:
                     return Qt.QIcon("icons:empty.png")
+                if byteCodec == ByteCodec.RL:
+                    return Qt.QIcon("icons:rl.png")
                 if byteCodec == ByteCodec.LZ77:
                     return Qt.QIcon("icons:lz77.png")
                 if byteCodec == ByteCodec.HUFFMAN:
