@@ -6,6 +6,58 @@ from ..model import MemoryMap, ByteCodec, DataType
 from . import search
 from .behavior import Behavior
 from ..parsers import lz77
+from ._utils import splitMemoryMap
+from .. import qt_utils
+
+
+class SplitLZ77Content(Behavior):
+
+    def setOffset(self, offset: int):
+        self.__offset = offset
+
+    def run(self):
+        context = self.context()
+        rom = context.rom()
+
+        mem = context._memView.selectedMemoryMap()
+        if mem is None:
+            return
+
+        if mem.byte_codec not in (None, ByteCodec.RAW):
+            return
+
+        address = self.__offset
+        if address is None:
+            return
+
+        headerMem = MemoryMap(
+            byte_offset=address,
+            byte_length=4,
+            data_type=DataType.UNKNOWN,
+        )
+        header = rom.extract_data(headerMem)
+
+        if header[0] != 0x10:
+            Qt.QMessageBox.information(
+                context,
+                "Error",
+                "The selected byte is not a valid LZ77 header"
+            )
+            return
+
+        dataMem = MemoryMap(
+            byte_codec=ByteCodec.LZ77,
+            byte_offset=address,
+            data_type=DataType.UNKNOWN,
+        )
+
+        with qt_utils.exceptionAsMessageBox(context):
+            byte_payload = rom.byte_payload(dataMem)
+            dataMem.byte_payload = byte_payload
+
+            memoryMapList = context.memoryMapList()
+            with qt_utils.exceptionAsMessageBox(context):
+                splitMemoryMap(memoryMapList, mem, dataMem)
 
 
 class SearchLZ77Runnable(search.SearchRunnable):

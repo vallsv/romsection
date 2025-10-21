@@ -36,7 +36,7 @@ from .gba_file import GBAFile, ByteCodec, MemoryMap, ImageColorMode, ImagePixelO
 from .qt_utils import blockSignals, exceptionAsMessageBox
 from .path_utils import resolve_abspath
 from .behaviors import file_dialog
-from .behaviors import search_lz77
+from .behaviors import lz77_content
 from .behaviors import search_huffman
 from .behaviors import sappy_content
 from .behaviors import unknown_content
@@ -115,7 +115,7 @@ class Extractor(Qt.QWidget):
         self.__searchSappySong = sappy_content.SearchSappySongHeaderFromInstrument()
         self.__searchSappySong.setContext(self)
 
-        self.__searchForLZ77 = search_lz77.SearchL777Content()
+        self.__searchForLZ77 = lz77_content.SearchL777Content()
         self.__searchForLZ77.setContext(self)
         self.__searchForHuffman = search_huffman.SearchHuffmanContent()
         self.__searchForHuffman.setContext(self)
