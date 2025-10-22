@@ -37,7 +37,7 @@ from .qt_utils import blockSignals, exceptionAsMessageBox
 from .path_utils import resolve_abspath
 from .behaviors import file_dialog
 from .behaviors import lz77_content
-from .behaviors import search_huffman
+from .behaviors import huffman_content
 from .behaviors import sappy_content
 from .behaviors import unknown_content
 from .behaviors.info import InfoDialog
@@ -117,7 +117,7 @@ class Extractor(Qt.QWidget):
 
         self.__searchForLZ77 = lz77_content.SearchL777Content()
         self.__searchForLZ77.setContext(self)
-        self.__searchForHuffman = search_huffman.SearchHuffmanContent()
+        self.__searchForHuffman = huffman_content.SearchHuffmanContent()
         self.__searchForHuffman.setContext(self)
 
         self.__createUncovered = unknown_content.CreateUncoveredMemory()
