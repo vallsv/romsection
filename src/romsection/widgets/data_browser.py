@@ -5,9 +5,11 @@ from PyQt5 import Qt
 
 from ..qt_utils import blockSignals
 from ..gba_file import GBAFile
+from ..behaviors.common import BehaviorAtRomOffset
 from ..behaviors import sappy_content
 from ..behaviors import lz77_content
 from ..behaviors import rl_content
+from ..behaviors import huffman_content
 from ..format_utils import format_address as f_address
 from ..model import MemoryMap, ByteCodec, DataType
 from .sample_browser_widget import SampleBrowserWidget
@@ -165,8 +167,14 @@ class DataBrowser(Qt.QWidget):
         self.__splitSappySample = sappy_content.SplitSappySample()
         self.__splitSappySample.setContext(context)
 
+        self.__splitSappySamplePlusOne = sappy_content.SplitSappySamplePlusOne()
+        self.__splitSappySamplePlusOne.setContext(context)
+
         self.__splitLZ77Content = lz77_content.SplitLZ77Content()
         self.__splitLZ77Content.setContext(context)
+
+        self.__splitHuffmanContent = huffman_content.SplitHuffmanContent()
+        self.__splitHuffmanContent.setContext(context)
 
         self.__splitRlContent = rl_content.SplitRlContent()
         self.__splitRlContent.setContext(context)
@@ -456,33 +464,50 @@ class DataBrowser(Qt.QWidget):
         split.triggered.connect(self._splitMemoryMap)
         menu.addAction(split)
 
-        self.__splitSappySample.setOffset(offset)
-        self.__splitLZ77Content.setOffset(offset)
-        self.__splitRlContent.setOffset(offset)
+        menu.addSeparator()
 
-        split = Qt.QAction(menu)
-        split.setText("Extract LZ77 content")
-        split.setIcon(Qt.QIcon("icons:lz77.png"))
-        split.triggered.connect(self.__splitLZ77Content.run)
-        menu.addAction(split)
+        offsetBehaviors: list[BehaviorAtRomOffset] = [
+            self.__splitSappySample,
+            self.__splitSappySamplePlusOne,
+            self.__splitLZ77Content,
+            self.__splitHuffmanContent,
+            self.__splitRlContent,
+        ]
 
-        split = Qt.QAction(menu)
-        split.setText("Extract RL content")
-        split.setIcon(Qt.QIcon("icons:rl.png"))
-        split.triggered.connect(self.__splitRlContent.run)
-        menu.addAction(split)
+        for b in offsetBehaviors:
+            b.setOffset(offset)
 
-        split = Qt.QAction(menu)
-        split.setText("Extract as sappy sample")
-        split.setIcon(Qt.QIcon("icons:sample.png"))
-        split.triggered.connect(self.__splitSappySample.run)
-        menu.addAction(split)
+        maxSize = max((s.headerSize() for s in offsetBehaviors))
 
-        split = Qt.QAction(menu)
-        split.setText("Extract as sappy sample +1 byte")
-        split.setIcon(Qt.QIcon("icons:sample.png"))
-        split.triggered.connect(self.__splitSappySample.runPlusOne)
-        menu.addAction(split)
+        rom = self.__rom
+        if rom is None:
+            return
+
+        memHeader = MemoryMap(
+            byte_offset=offset,
+            byte_length=maxSize,
+            byte_codec=ByteCodec.RAW,
+        )
+        header = rom.extract_raw(memHeader)
+
+        def addActionToMenu(offsetBehavior: BehaviorAtRomOffset):
+            action = offsetBehavior.createAction(menu)
+            size = offsetBehavior.headerSize()
+            if size > len(header):
+                valid = False
+            else:
+                valid = offsetBehavior.isValidHeader(header[:size])
+            action.setEnabled(valid)
+            menu.addAction(action)
+
+        addActionToMenu(self.__splitLZ77Content)
+        addActionToMenu(self.__splitHuffmanContent)
+        addActionToMenu(self.__splitRlContent)
+
+        menu.addSeparator()
+
+        addActionToMenu(self.__splitSappySamplePlusOne)
+        addActionToMenu(self.__splitSappySample)
 
         menu.exec(globalPos)
 

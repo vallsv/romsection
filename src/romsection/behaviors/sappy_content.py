@@ -10,6 +10,8 @@ from ..model import MemoryMap, ByteCodec, DataType
 from ..parsers import sappy_utils
 from ..widgets.memory_map_list_model import MemoryMapListModel
 from ._utils import splitMemoryMap
+from .common import BehaviorAtRomOffset
+from .. import qt_utils
 
 
 class SearchSappyTag(Behavior):
@@ -89,26 +91,23 @@ class SearchSongHeaderAddress(SearchContent):
     NAME = "SAPPY song header"
 
 
-class SplitSappySample(Behavior):
+class SplitSappySample(BehaviorAtRomOffset):
 
-    def setOffset(self, offset: int):
-        self.__offset = offset
-        self.__extraByte = 0
-        """
-        Sounds like some games store the samples with an extra byte than
-        described size in the sample header.
+    EXTRA_BYTE = 0
 
-        This is maybe related to a problem of interpolation in the
-        mixer whuch allow to use data outside the sample location.
-        """
+    def headerSize(self):
+        return sappy_utils.SAMPLE_HEADER_SIZE
 
-    def runPlusOne(self):
-        previous = self.__extraByte
-        self.__extraByte = 1
-        try:
-            self.run()
-        finally:
-            self.__extraByte = previous
+    def isValidHeader(self, data: bytes):
+        header = sappy_utils.SampleHeader.parse(data)
+        return header.is_valid()
+
+    def createAction(self, parent: Qt.QObject) -> Qt.QAction:
+        action = Qt.QAction(parent)
+        action.setText("Extract sappy sample content")
+        action.setIcon(Qt.QIcon("icons:sample.png"))
+        action.triggered.connect(self.run)
+        return action
 
     def run(self):
         context = self.context()
@@ -121,30 +120,47 @@ class SplitSappySample(Behavior):
         if mem.byte_codec not in (None, ByteCodec.RAW):
             return
 
-        address = self.__offset
+        address = self.offset()
         if address is None:
             return
 
         header = MemoryMap(
             byte_offset=address,
-            byte_length=16,
+            byte_length=sappy_utils.SAMPLE_HEADER_SIZE,
             data_type=DataType.UNKNOWN,
         )
         data = rom.extract_data(header)
 
-        zero1, zero2, zero3, kind, pitch, start, size = struct.unpack("<BBBBLLL", data)
-        if zero1 != 0 or zero2 != 0 or zero3 != 0 or kind not in (0x00, 0x40):
-            return
+        with qt_utils.exceptionAsMessageBox(context):
+            header = sappy_utils.SampleHeader.parse(data)
 
-        sampleMem = MemoryMap(
-            byte_offset=address,
-            byte_length=16 + size + self.__extraByte,
-            byte_codec=ByteCodec.RAW,
-            data_type=DataType.SAMPLE_SAPPY,
-        )
+            sampleMem = MemoryMap(
+                byte_offset=address,
+                byte_length=sappy_utils.SAMPLE_HEADER_SIZE + header.size + self.EXTRA_BYTE,
+                byte_codec=ByteCodec.RAW,
+                data_type=DataType.SAMPLE_SAPPY,
+            )
 
-        memoryMapList = context.memoryMapList()
-        splitMemoryMap(memoryMapList, mem, sampleMem)
+            memoryMapList = context.memoryMapList()
+            splitMemoryMap(memoryMapList, mem, sampleMem)
+
+
+class SplitSappySamplePlusOne(SplitSappySample):
+    """
+    Sounds like some games store the samples with an extra byte than
+    the described size in the sample header.
+
+    This is maybe related to a problem of interpolation in the
+    mixer which allow to use data outside the sample location.
+    """
+    EXTRA_BYTE = 1
+
+    def createAction(self, parent: Qt.QObject) -> Qt.QAction:
+        action = Qt.QAction(parent)
+        action.setText("Extract sappy sample content +1")
+        action.setIcon(Qt.QIcon("icons:sample.png"))
+        action.triggered.connect(self.run)
+        return action
 
 
 class SearchSappySongHeaderFromInstrument(Behavior):

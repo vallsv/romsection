@@ -10,12 +10,23 @@ from ..model import MemoryMap, ByteCodec, DataType
 from ..parsers import rl
 from .. import qt_utils
 from ._utils import splitMemoryMap
+from .common import BehaviorAtRomOffset
 
 
-class SplitRlContent(Behavior):
+class SplitRlContent(BehaviorAtRomOffset):
 
-    def setOffset(self, offset: int):
-        self.__offset = offset
+    def headerSize(self):
+        return 1
+
+    def isValidHeader(self, data: bytes):
+        return data[0] == 0x30
+
+    def createAction(self, parent: Qt.QObject) -> Qt.QAction:
+        action = Qt.QAction(parent)
+        action.setText("Extract run-length content")
+        action.setIcon(Qt.QIcon("icons:rl.png"))
+        action.triggered.connect(self.run)
+        return action
 
     def run(self):
         context = self.context()
@@ -28,7 +39,7 @@ class SplitRlContent(Behavior):
         if mem.byte_codec not in (None, ByteCodec.RAW):
             return
 
-        address = self.__offset
+        address = self.offset()
         if address is None:
             return
 
