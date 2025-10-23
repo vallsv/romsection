@@ -23,6 +23,7 @@ class HexaTableModel(Qt.QAbstractTableModel):
         self.__font = Qt.QFontDatabase.systemFont(Qt.QFontDatabase.FixedFont)
         self.__palette = Qt.QPalette()
         self.__ascii: lru.LRU[int, str] = lru.LRU(256)
+        self.__hilight = Qt.QColor("#fcaf3e")
 
     def rowCount(self, parent_idx=None):
         """Returns number of rows to be displayed in table"""
@@ -104,13 +105,18 @@ class HexaTableModel(Qt.QAbstractTableModel):
             return self.__font
 
         elif role == Qt.Qt.BackgroundRole:
-            pos = (row << 4) + column
             if column == 0x10:
                 return self.__palette.color(Qt.QPalette.Disabled, Qt.QPalette.Window)
-            elif pos < self.__padding or pos >= self.__length:
+            pos = (row << 4) + column
+            if pos < self.__padding or pos >= self.__length:
                 return self.__palette.color(Qt.QPalette.Disabled, Qt.QPalette.ButtonText)
-            else:
-                return None
+
+            if pos % 4 == 0:
+                value = self.__data[pos - self.__padding]
+                if value in (0x10, 0x24, 0x28, 0x30):
+                    return self.__hilight
+
+            return None
 
         elif role == Qt.Qt.TextAlignmentRole:
             if column == 0x10:
