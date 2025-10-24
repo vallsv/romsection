@@ -115,7 +115,7 @@ class Extractor(Qt.QWidget):
         self.__searchSappySong = sappy_content.SearchSappySongHeaderFromInstrument()
         self.__searchSappySong.setContext(self)
 
-        self.__searchForLZ77 = lz77_content.SearchL777Content()
+        self.__searchForLZ77 = lz77_content.SearchLZ77Content()
         self.__searchForLZ77.setContext(self)
         self.__searchForHuffman = huffman_content.SearchHuffmanContent()
         self.__searchForHuffman.setContext(self)

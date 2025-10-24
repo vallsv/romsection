@@ -71,23 +71,24 @@ class SplitLZ77Content(BehaviorAtRomOffset):
                 splitMemoryMap(memoryMapList, mem, dataMem)
 
 
-class SearchLZ77Runnable(search.SearchRunnable):
-    def title(self) -> str:
-        return "Searching for LZ77 content..."
+class SearchLZ77Content(search.SearchContentBehavior):
+    """
+    Search for LZ77 content.
+    """
 
-    def _checkStream(self, romOffset: int, stream: io.IOBase) -> bool:
+    def _checkStream(self, runner: search.SearchRunnable, romOffset: int, stream: io.IOBase) -> bool:
         """
         Check the stream at the place it is.
+
+        This is executed inside another thread.
         """
         start = stream.tell()
         size = lz77.dryrun(
             stream,
-            min_length=16,
-            max_length=600*400*2,
-            must_stop=self._mustStop
+            min_length=self.minDataLength(),
+            max_length=self.maxDataLength(),
+            must_stop=runner._mustStop
         )
-        if size is None:
-            return False
         byteLength = stream.tell() - start
         mem = MemoryMap(
             byte_offset=romOffset,
@@ -96,15 +97,26 @@ class SearchLZ77Runnable(search.SearchRunnable):
             byte_codec=ByteCodec.LZ77,
             data_type=DataType.UNKNOWN,
         )
-        self._onFound(mem)
+        runner._onFound(mem)
         return True
 
 
-class SearchL777Content(Behavior):
-    """
-    Search for LZ77 content.
-    """
-    def run(self) -> None:
+class SearchSimilarLZ77Content(BehaviorAtRomOffset):
+
+    def headerSize(self):
+        return 1
+
+    def isValidHeader(self, data: bytes):
+        return data[0] == 0x10
+
+    def createAction(self, parent: Qt.QObject) -> Qt.QAction:
+        action = Qt.QAction(parent)
+        action.setText("Search LZ77 content of the same size")
+        action.setIcon(Qt.QIcon("icons:lz77.png"))
+        action.triggered.connect(self.run)
+        return action
+
+    def run(self):
         context = self.context()
         rom = context.rom()
 
@@ -112,51 +124,32 @@ class SearchL777Content(Behavior):
         if mem is None:
             return
 
-        assert rom is not None
+        if mem.byte_codec not in (None, ByteCodec.RAW):
+            return
 
-        memoryMapQueue: queue.Queue[MemoryMap] = queue.Queue()
+        address = self.offset()
+        if address is None:
+            return
 
-        Qt.QGuiApplication.setOverrideCursor(Qt.QCursor(Qt.Qt.WaitCursor))
-        pool = Qt.QThreadPool.globalInstance()
-
-        nbFound = 0
-        memoryMapList = context.memoryMapList()
-
-        def flushQueue():
-            nonlocal nbFound
-            try:
-                lz77mem = memoryMapQueue.get(block=False)
-                if nbFound == 0:
-                    # At the first found we remove the parent memory
-                    memoryMapList.removeObject(mem)
-                nbFound += 1
-                index = memoryMapList.indexAfterOffset(lz77mem.byte_offset)
-                memoryMapList.insertObject(index, lz77mem)
-            except queue.Empty:
-                pass
-
-        runnable = SearchLZ77Runnable(
-            rom=rom,
-            memoryRange=(mem.byte_offset, mem.byte_end),
-            queue=memoryMapQueue,
+        headerMem = MemoryMap(
+            byte_offset=address,
+            byte_length=4,
+            data_type=DataType.UNKNOWN,
         )
+        header = rom.extract_data(headerMem)
 
-        dialog = search.WaitForSearchDialog(context)
-        dialog.registerRunnable(runnable)
-        pool.start(runnable)
+        if header[0] != 0x10:
+            Qt.QMessageBox.information(
+                context,
+                "Error",
+                "The selected byte is not a valid LZ77"
+            )
+            return
 
-        timer = Qt.QTimer(context)
-        timer.timeout.connect(flushQueue)
-        timer.start(1000)
+        size = int.from_bytes(header[1:], byteorder="little", signed=False)
 
-        dialog.exec()
-
-        timer.stop()
-        flushQueue()
-        Qt.QGuiApplication.restoreOverrideCursor()
-
-        Qt.QMessageBox.information(
-            context,
-            "Seatch result",
-            f"{nbFound} potential LZ77 location was found"
-        )
+        subBehavior = SearchLZ77Content()
+        subBehavior.setContext(context)
+        subBehavior.setInsertionMode(search.InsertionMode.SPLIT)
+        subBehavior.setDataLengthRange(size, size)
+        subBehavior.run()

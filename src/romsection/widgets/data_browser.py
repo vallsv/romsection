@@ -179,6 +179,15 @@ class DataBrowser(Qt.QWidget):
         self.__splitRlContent = rl_content.SplitRlContent()
         self.__splitRlContent.setContext(context)
 
+        self.__searchSimilarLZ77Content = lz77_content.SearchSimilarLZ77Content()
+        self.__searchSimilarLZ77Content.setContext(context)
+
+        self.__searchSimilarHuffmanContent = huffman_content.SearchSimilarHuffmanContent()
+        self.__searchSimilarHuffmanContent.setContext(context)
+
+        self.__searchSimilarRlContent = rl_content.SearchSimilarRlContent()
+        self.__searchSimilarRlContent.setContext(context)
+
         action = Qt.QAction(self)
         action.setIcon(Qt.QIcon("icons:hexa.png"))
         action.setCheckable(True)
@@ -472,6 +481,9 @@ class DataBrowser(Qt.QWidget):
             self.__splitLZ77Content,
             self.__splitHuffmanContent,
             self.__splitRlContent,
+            self.__searchSimilarLZ77Content,
+            self.__searchSimilarHuffmanContent,
+            self.__searchSimilarRlContent,
         ]
 
         for b in offsetBehaviors:
@@ -508,6 +520,12 @@ class DataBrowser(Qt.QWidget):
 
         addActionToMenu(self.__splitSappySamplePlusOne)
         addActionToMenu(self.__splitSappySample)
+
+        menu.addSeparator()
+
+        addActionToMenu(self.__searchSimilarLZ77Content)
+        addActionToMenu(self.__searchSimilarHuffmanContent)
+        addActionToMenu(self.__searchSimilarRlContent)
 
         menu.exec(globalPos)
 
