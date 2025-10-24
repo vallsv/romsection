@@ -352,6 +352,7 @@ class DataBrowser(Qt.QWidget):
         self.__pixel.setMemory(memory)
         self.__wave.setMemory(memory)
         self.__hexa.setMemory(memory, address=address)
+        self.setPosition(0)
 
     def address(self) -> int:
         return self.__address
