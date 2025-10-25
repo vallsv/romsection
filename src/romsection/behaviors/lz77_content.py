@@ -30,7 +30,7 @@ class SplitLZ77Content(BehaviorAtRomOffset):
         context = self.context()
         rom = context.rom()
 
-        mem = context._memView.selectedMemoryMap()
+        mem = context.currentMemoryMap()
         if mem is None:
             return
 
@@ -50,7 +50,7 @@ class SplitLZ77Content(BehaviorAtRomOffset):
 
         if header[0] != 0x10:
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Error",
                 "The selected byte is not a valid LZ77 header"
             )
@@ -62,13 +62,12 @@ class SplitLZ77Content(BehaviorAtRomOffset):
             data_type=DataType.UNKNOWN,
         )
 
-        with qt_utils.exceptionAsMessageBox(context):
+        with qt_utils.exceptionAsMessageBox(context.mainWidget()):
             byte_payload = rom.byte_payload(dataMem)
             dataMem.byte_payload = byte_payload
 
             memoryMapList = context.memoryMapList()
-            with qt_utils.exceptionAsMessageBox(context):
-                splitMemoryMap(memoryMapList, mem, dataMem)
+            splitMemoryMap(memoryMapList, mem, dataMem)
 
 
 class SearchLZ77Content(search.SearchContentBehavior):
@@ -120,7 +119,7 @@ class SearchSimilarLZ77Content(BehaviorAtRomOffset):
         context = self.context()
         rom = context.rom()
 
-        mem = context._memView.selectedMemoryMap()
+        mem = context.currentMemoryMap()
         if mem is None:
             return
 
@@ -140,7 +139,7 @@ class SearchSimilarLZ77Content(BehaviorAtRomOffset):
 
         if header[0] != 0x10:
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Error",
                 "The selected byte is not a valid LZ77"
             )

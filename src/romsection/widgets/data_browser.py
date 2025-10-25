@@ -20,6 +20,8 @@ from .image_pixel_order_combo import ImagePixelOrderCombo
 from .image_color_mode_combo import ImageColorModeCombo
 from .combo_box import ComboBox
 from .hexa_view import HexaView
+from ..context import Context
+from ..behaviors.behavior import Behavior
 
 
 class PixelTools:
@@ -141,8 +143,8 @@ class DataBrowser(Qt.QWidget):
     def __init__(self, parent: Qt.QWidget | None = None):
         Qt.QWidget.__init__(self, parent=parent)
         self.setSizePolicy(Qt.QSizePolicy.Expanding, Qt.QSizePolicy.Expanding)
-        context = parent
 
+        self.__context: Context | None = None
         self.__address: int = 0
         self.__rom: GBAFile | None = None
         self.__mem: MemoryMap | None = None
@@ -165,28 +167,24 @@ class DataBrowser(Qt.QWidget):
         self.__hexa.customContextMenuRequested.connect(self._showHexaContextMenu)
 
         self.__splitSappySample = sappy_content.SplitSappySample()
-        self.__splitSappySample.setContext(context)
-
         self.__splitSappySamplePlusOne = sappy_content.SplitSappySamplePlusOne()
-        self.__splitSappySamplePlusOne.setContext(context)
-
         self.__splitLZ77Content = lz77_content.SplitLZ77Content()
-        self.__splitLZ77Content.setContext(context)
-
         self.__splitHuffmanContent = huffman_content.SplitHuffmanContent()
-        self.__splitHuffmanContent.setContext(context)
-
         self.__splitRlContent = rl_content.SplitRlContent()
-        self.__splitRlContent.setContext(context)
-
         self.__searchSimilarLZ77Content = lz77_content.SearchSimilarLZ77Content()
-        self.__searchSimilarLZ77Content.setContext(context)
-
         self.__searchSimilarHuffmanContent = huffman_content.SearchSimilarHuffmanContent()
-        self.__searchSimilarHuffmanContent.setContext(context)
-
         self.__searchSimilarRlContent = rl_content.SearchSimilarRlContent()
-        self.__searchSimilarRlContent.setContext(context)
+
+        self.__behaviors: list[Behavior] = [
+            self.__splitSappySample,
+            self.__splitSappySamplePlusOne,
+            self.__splitLZ77Content,
+            self.__splitHuffmanContent,
+            self.__splitRlContent,
+            self.__searchSimilarLZ77Content,
+            self.__searchSimilarHuffmanContent,
+            self.__searchSimilarRlContent,
+        ]
 
         action = Qt.QAction(self)
         action.setIcon(Qt.QIcon("icons:hexa.png"))
@@ -247,6 +245,11 @@ class DataBrowser(Qt.QWidget):
 
         self.__pixel.selectionChanged.connect(self.__onSelectionChanged)
         self._updateSelection(self.selection())
+
+    def setContext(self, context: Context | None):
+        self.__context = context
+        for b in self.__behaviors:
+            b.setContext(context)
 
     def __onSelectionChanged(self, selection: tuple[int, int] | None):
         # Assume each widget have the same address origin
@@ -440,8 +443,7 @@ class DataBrowser(Qt.QWidget):
         else:
             nextMem = None
 
-        context = self.parent()
-        memoryMapList = context.memoryMapList()
+        memoryMapList = self.__context.memoryMapList()
         index = memoryMapList.objectIndex(mem).row()
         memoryMapList.removeObject(mem)
         if prevMem is not None:
@@ -552,8 +554,7 @@ class DataBrowser(Qt.QWidget):
             data_type=DataType.UNKNOWN,
         )
 
-        context = self.parent()
-        memoryMapList = context.memoryMapList()
+        memoryMapList = self.__context.memoryMapList()
         index = memoryMapList.objectIndex(mem).row()
         memoryMapList.removeObject(mem)
         if prevMem.byte_length:

@@ -35,7 +35,7 @@ class SplitRlContent(BehaviorAtRomOffset):
         context = self.context()
         rom = context.rom()
 
-        mem = context._memView.selectedMemoryMap()
+        mem = context.currentMemoryMap()
         if mem is None:
             return
 
@@ -55,7 +55,7 @@ class SplitRlContent(BehaviorAtRomOffset):
 
         if header[0] != 0x30:
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Error",
                 "The selected byte is not a valid run-length header"
             )
@@ -67,13 +67,12 @@ class SplitRlContent(BehaviorAtRomOffset):
             data_type=DataType.UNKNOWN,
         )
 
-        with qt_utils.exceptionAsMessageBox(context):
+        with qt_utils.exceptionAsMessageBox(context.mainWidget()):
             byte_payload = rom.byte_payload(dataMem)
             dataMem.byte_payload = byte_payload
 
             memoryMapList = context.memoryMapList()
-            with qt_utils.exceptionAsMessageBox(context):
-                splitMemoryMap(memoryMapList, mem, dataMem)
+            splitMemoryMap(memoryMapList, mem, dataMem)
 
 
 class SearchRlContent(search.SearchContentBehavior):
@@ -125,7 +124,7 @@ class SearchSimilarRlContent(BehaviorAtRomOffset):
         context = self.context()
         rom = context.rom()
 
-        mem = context._memView.selectedMemoryMap()
+        mem = context.currentMemoryMap()
         if mem is None:
             return
 
@@ -145,7 +144,7 @@ class SearchSimilarRlContent(BehaviorAtRomOffset):
 
         if header[0] != 0x30:
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Error",
                 "The selected byte is not a valid run-length"
             )

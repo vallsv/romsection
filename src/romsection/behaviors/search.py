@@ -230,11 +230,9 @@ class SearchContentBehavior(Behavior):
         context = self.context()
         rom = context.rom()
 
-        mem = context._memView.selectedMemoryMap()
+        mem = context.currentMemoryMap()
         if mem is None:
             return
-
-        assert rom is not None
 
         memoryMapQueue: queue.Queue[MemoryMap] = queue.Queue()
 
@@ -288,11 +286,11 @@ class SearchContentBehavior(Behavior):
             # in the end because another memorymap is already there
             runnable._skipValidBlocks = True
 
-        dialog = WaitForSearchDialog(context)
+        dialog = WaitForSearchDialog(context.mainWidget())
         dialog.registerRunnable(runnable)
         pool.start(runnable)
 
-        timer = Qt.QTimer(context)
+        timer = Qt.QTimer(context.mainWidget())
         timer.timeout.connect(flushQueue)
         timer.start(200)
 
@@ -307,7 +305,7 @@ class SearchContentBehavior(Behavior):
             msg += f"{msg} {len(notAdded)} was not inserted for various reasons."
 
         Qt.QMessageBox.information(
-            context,
+            context.mainWidget(),
             "Seatch result",
             msg,
         )

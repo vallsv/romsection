@@ -29,13 +29,13 @@ class SearchSappyTag(Behavior):
             offsets = [format_address(offset) for offset in result]
             string = ", ".join(offsets)
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Result",
                 f"The following offsets looks like SAPPY empty instrument bank:\n{string}"
             )
         else:
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Result",
                 "Nothing was found"
             )
@@ -56,14 +56,14 @@ class SearchContent(Behavior):
         self.setData(dataAddress)
 
     def run(self):
+        context = self.context()
         if self.__data is None:
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Result",
                 "No content selected"
             )
             return
-        context = self.context()
         rom = context.rom()
         result = rom.search_for_bytes(0, rom.size, self.__data)
 
@@ -71,13 +71,13 @@ class SearchContent(Behavior):
             offsets = [format_address(offset) for offset in result]
             string = ", ".join(offsets)
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Result",
                 f"The following offsets looks to use this {self.NAME}:\n{string}"
             )
         else:
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Result",
                 "Nothing was found"
             )
@@ -113,7 +113,7 @@ class SplitSappySample(BehaviorAtRomOffset):
         context = self.context()
         rom = context.rom()
 
-        mem = context._memView.selectedMemoryMap()
+        mem = context.currentMemoryMap()
         if mem is None:
             return
 
@@ -131,7 +131,7 @@ class SplitSappySample(BehaviorAtRomOffset):
         )
         data = rom.extract_data(header)
 
-        with qt_utils.exceptionAsMessageBox(context):
+        with qt_utils.exceptionAsMessageBox(context.mainWidget()):
             header = sappy_utils.SampleHeader.parse(data)
 
             sampleMem = MemoryMap(
@@ -174,10 +174,10 @@ class SearchSappySongHeaderFromInstrument(Behavior):
     def run(self):
         context = self.context()
         rom = context.rom()
-        mem = context._memView.selectedMemoryMap()
+        mem = context.currentMemoryMap()
         if mem is None:
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Error",
                 "No selected memory map. A single Sappy instrument table have to be selected."
             )
@@ -185,7 +185,7 @@ class SearchSappySongHeaderFromInstrument(Behavior):
 
         if mem.data_type != DataType.MUSIC_INSTRUMENT_SAPPY:
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Error",
                 "The selected memory map is not a Sappy Instrument Sappy instrument table"
             )
@@ -212,13 +212,13 @@ class SearchSappySongHeaderFromInstrument(Behavior):
             offsets = [format_address(offset) for offset in result]
             string = ", ".join(offsets)
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Result",
                 f"The following offsets looks to link this SAPPY instrument table:\n{string}"
             )
         else:
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Result",
                 "Nothing was found"
             )
@@ -242,10 +242,10 @@ class SearchSappySongHeadersFromSongTable(Behavior):
     def run(self):
         context = self.context()
         rom = context.rom()
-        mem = context._memView.selectedMemoryMap()
+        mem = context.currentMemoryMap()
         if mem is None:
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Error",
                 "No selected memory map. A single Sappy song table have to be selected."
             )
@@ -253,7 +253,7 @@ class SearchSappySongHeadersFromSongTable(Behavior):
 
         if mem.data_type != DataType.MUSIC_SONG_TABLE_SAPPY:
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Error",
                 "The selected memory map is not a Sappy song table"
             )
@@ -290,14 +290,14 @@ class SearchSappySongHeadersFromSongTable(Behavior):
         if to_be_extracted == 0:
             if len(cant_be_extracted) == 0:
                 Qt.QMessageBox.information(
-                    context,
+                    context.mainWidget(),
                     "Result",
                     f"Every item found ({already_extracted}) was already extracted. Nothing was modified."
                 )
             else:
                 msg = message_from_offsets(cant_be_extracted)
                 Qt.QMessageBox.information(
-                    context,
+                    context.mainWidget(),
                     "Error",
                     f"Some items ({msg}) can't be extracted. Nothing was modified."
                 )
@@ -331,7 +331,7 @@ class SearchSappySongHeadersFromSongTable(Behavior):
 
         if was_extracted:
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Result",
                 f"Some items ({was_extracted}) was extracted."
             )
@@ -339,7 +339,7 @@ class SearchSappySongHeadersFromSongTable(Behavior):
         if cant_be_extracted:
             msg = message_from_offsets(cant_be_extracted)
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Error",
                 f"Some items can't be extracted because of the memory map description. See {msg}"
             )
@@ -347,7 +347,7 @@ class SearchSappySongHeadersFromSongTable(Behavior):
         if invalid_header:
             msg = message_from_offsets(invalid_header)
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Error",
                 f"Some items can't be extracted because it was not possible to parse them. See {msg}"
             )
@@ -360,10 +360,10 @@ class SearchSappyTracksFromSongTable(Behavior):
     def run(self):
         context = self.context()
         rom = context.rom()
-        mem = context._memView.selectedMemoryMap()
+        mem = context.currentMemoryMap()
         if mem is None:
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Error",
                 "No selected memory map. A single Sappy song table have to be selected."
             )
@@ -371,7 +371,7 @@ class SearchSappyTracksFromSongTable(Behavior):
 
         if mem.data_type != DataType.MUSIC_SONG_TABLE_SAPPY:
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Error",
                 "The selected memory map is not a Sappy song table."
             )
@@ -447,7 +447,7 @@ class SearchSappyTracksFromSongTable(Behavior):
 
         if was_extracted:
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Result",
                 f"Some items ({was_extracted}) was extracted."
             )
@@ -455,7 +455,7 @@ class SearchSappyTracksFromSongTable(Behavior):
         if invalid_description:
             msg = message_from_offsets(invalid_description)
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Error",
                 f"Some items can't be extracted because of the memory map description. See {msg}"
             )
@@ -463,7 +463,7 @@ class SearchSappyTracksFromSongTable(Behavior):
         if invalid_content:
             msg = message_from_offsets(invalid_content)
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Error",
                 f"Some items can't be extracted because it was not possible to parse them. See {msg}"
             )
@@ -476,10 +476,10 @@ class SearchSappyKeySplitTableFromInstrumentTable(Behavior):
     def run(self):
         context = self.context()
         rom = context.rom()
-        mem = context._memView.selectedMemoryMap()
+        mem = context.currentMemoryMap()
         if mem is None:
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Error",
                 "No selected memory map. A single Sappy song table have to be selected."
             )
@@ -487,7 +487,7 @@ class SearchSappyKeySplitTableFromInstrumentTable(Behavior):
 
         if mem.data_type != DataType.MUSIC_INSTRUMENT_SAPPY:
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Error",
                 "The selected memory map is not a Sappy instrument table"
             )
@@ -527,14 +527,14 @@ class SearchSappyKeySplitTableFromInstrumentTable(Behavior):
         if to_be_extracted == 0:
             if len(cant_be_extracted) == 0:
                 Qt.QMessageBox.information(
-                    context,
+                    context.mainWidget(),
                     "Result",
                     f"Every item found ({already_extracted}) was already extracted. Nothing was modified."
                 )
             else:
                 msg = message_from_offsets(cant_be_extracted)
                 Qt.QMessageBox.information(
-                    context,
+                    context.mainWidget(),
                     "Error",
                     f"Some items ({msg}) can't be extracted. Nothing was modified."
                 )
@@ -567,7 +567,7 @@ class SearchSappyKeySplitTableFromInstrumentTable(Behavior):
 
         if was_extracted:
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Result",
                 f"Some items ({was_extracted}) was extracted."
             )
@@ -575,7 +575,7 @@ class SearchSappyKeySplitTableFromInstrumentTable(Behavior):
         if cant_be_extracted:
             msg = message_from_offsets(cant_be_extracted)
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Error",
                 f"Some items can't be extracted because of the memory map description. See {msg}"
             )
@@ -583,7 +583,7 @@ class SearchSappyKeySplitTableFromInstrumentTable(Behavior):
         if invalid_header:
             msg = message_from_offsets(invalid_header)
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Error",
                 f"Some items can't be extracted because it was not possible to parse them. See {msg}"
             )
@@ -596,10 +596,10 @@ class SearchSappySampleFromInstrumentTable(Behavior):
     def run(self):
         context = self.context()
         rom = context.rom()
-        mem = context._memView.selectedMemoryMap()
+        mem = context.currentMemoryMap()
         if mem is None:
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Error",
                 "No selected memory map. A single Sappy song table have to be selected."
             )
@@ -607,7 +607,7 @@ class SearchSappySampleFromInstrumentTable(Behavior):
 
         if mem.data_type != DataType.MUSIC_INSTRUMENT_SAPPY:
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Error",
                 "The selected memory map is not a Sappy instrument table"
             )
@@ -647,14 +647,14 @@ class SearchSappySampleFromInstrumentTable(Behavior):
         if to_be_extracted == 0:
             if len(cant_be_extracted) == 0:
                 Qt.QMessageBox.information(
-                    context,
+                    context.mainWidget(),
                     "Result",
                     f"Every item found ({already_extracted}) was already extracted. Nothing was modified."
                 )
             else:
                 msg = message_from_offsets(cant_be_extracted)
                 Qt.QMessageBox.information(
-                    context,
+                    context.mainWidget(),
                     "Error",
                     f"Some items ({msg}) can't be extracted. Nothing was modified."
                 )
@@ -691,7 +691,7 @@ class SearchSappySampleFromInstrumentTable(Behavior):
 
         if was_extracted:
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Result",
                 f"Some items ({was_extracted}) was extracted."
             )
@@ -699,7 +699,7 @@ class SearchSappySampleFromInstrumentTable(Behavior):
         if cant_be_extracted:
             msg = message_from_offsets(cant_be_extracted)
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Error",
                 f"Some items can't be extracted because of the memory map description. See {msg}"
             )
@@ -707,7 +707,7 @@ class SearchSappySampleFromInstrumentTable(Behavior):
         if invalid_header:
             msg = message_from_offsets(invalid_header)
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Error",
                 f"Some items can't be extracted because it was not possible to parse them. See {msg}"
             )

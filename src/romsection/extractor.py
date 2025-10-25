@@ -10,10 +10,10 @@ import traceback
 import queue
 from PyQt5 import Qt
 
+from .context import Context
 from .utils import prime_factors, guessed_shapes
 from .widgets.data_browser import DataBrowser
 from .widgets.memory_map_list_view import MemoryMapListView
-from .widgets.memory_map_list_model import MemoryMapListModel
 from .widgets.image_color_mode_list import ImageColorModeList
 from .widgets.shape_list import ShapeList
 from .widgets.image_pixel_order_list import ImagePixelOrderList
@@ -54,12 +54,14 @@ def uniqueValueElseNone(data: list[typing.Any]):
 class Extractor(Qt.QWidget):
     def __init__(self, parent: Qt.QWidget | None = None):
         Qt.QWidget.__init__(self, parent)
-        self._rom: GBAFile | None = None
+
+        context = Context(self)
+        context._mainWidget = self
+        self._context = context
 
         self._lastBySize: dict[int, MemoryMap] = {}
-        self._memoryMapList = MemoryMapListModel(self)
         self._paletteList =  PaletteFilterProxyModel(self)
-        self._paletteList.setSourceModel(self._memoryMapList)
+        self._paletteList.setSourceModel(context.memoryMapList())
 
         self._dialogDirectory = os.getcwd()
         self._filename: str | None = None
@@ -111,23 +113,23 @@ class Extractor(Qt.QWidget):
         toolButton.setMenu(toolMenu)
 
         self.__searchSappyContent = sappy_content.SearchSappyTag()
-        self.__searchSappyContent.setContext(self)
+        self.__searchSappyContent.setContext(context)
         self.__searchSappySong = sappy_content.SearchSappySongHeaderFromInstrument()
-        self.__searchSappySong.setContext(self)
+        self.__searchSappySong.setContext(context)
 
         self.__searchForLZ77 = lz77_content.SearchLZ77Content()
-        self.__searchForLZ77.setContext(self)
+        self.__searchForLZ77.setContext(context)
         self.__searchForHuffman = huffman_content.SearchHuffmanContent()
-        self.__searchForHuffman.setContext(self)
+        self.__searchForHuffman.setContext(context)
 
         self.__createUncovered = unknown_content.CreateUncoveredMemory()
-        self.__createUncovered.setContext(self)
+        self.__createUncovered.setContext(context)
 
         self.__replaceUnknownByPadding = unknown_content.ReplaceUnknownByPadding()
-        self.__replaceUnknownByPadding.setContext(self)
+        self.__replaceUnknownByPadding.setContext(context)
 
         self.__removeUnknown = unknown_content.RemoveUnknown()
-        self.__removeUnknown.setContext(self)
+        self.__removeUnknown.setContext(context)
 
         action = Qt.QAction(self)
         action.triggered.connect(self.__createUncovered.run)
@@ -164,7 +166,7 @@ class Extractor(Qt.QWidget):
         toolMenu.addAction(action)
 
         self._memView = MemoryMapListView(self)
-        self._memView.setModel(self._memoryMapList)
+        self._memView.setModel(context.memoryMapList())
         self._memView.selectionModel().selectionChanged.connect(self._onMemoryMapSelectionChanged)
         self._memView.setContextMenuPolicy(Qt.Qt.CustomContextMenu)
         self._memView.customContextMenuRequested.connect(self._showMemoryMapContextMenu)
@@ -215,9 +217,12 @@ class Extractor(Qt.QWidget):
         self._tileSetView = TileSetView(self)
 
         self._dataBrowser = DataBrowser(self)
+        self._dataBrowser.setContext(context)
+
         self._musicBrowser = MusicBrowser(self)
         self._sampleView = SampleView(self)
         self._dataView = DataView(self)
+        self._dataBrowser.setContext(context)
         self._hexaView = HexaView(self)
 
         self._view = Qt.QStackedLayout()
@@ -255,12 +260,13 @@ class Extractor(Qt.QWidget):
         main.setStretchFactor(self._view, 1)
 
         self._memoryMapFilter.filterChanged.connect(self.__setMemoryMapFilter)
+        context.romChanged.connect(self._onRomChanged)
 
-        self.setRom(None)
+        self._onRomChanged(None)
 
     def _showInfo(self):
         dialog = InfoDialog(self)
-        dialog.setContext(self)
+        dialog.setContext(self._context)
         dialog.exec()
 
     def __setMemoryMapFilter(self, filter: MemoryMapFilter | None):
@@ -276,7 +282,7 @@ class Extractor(Qt.QWidget):
         self.loadFilename(filename)
 
     def loadFilename(self, filename: str):
-        with exceptionAsMessageBox():
+        with exceptionAsMessageBox(self):
             if filename.endswith(".toml"):
                 self._loadTomlFile(filename)
             else:
@@ -303,11 +309,11 @@ class Extractor(Qt.QWidget):
             )
             rom.offsets.append(header)
             rom.offsets.append(other)
-            self.setRom(rom)
+            self._context.setRom(rom)
 
     def _loadTomlFile(self, filename: str):
         localDirectory = os.path.dirname(filename)
-        with exceptionAsMessageBox():
+        with exceptionAsMessageBox(self):
             try:
                 with open(filename, "rt") as f:
                     data = rtoml.load(f)
@@ -339,28 +345,22 @@ class Extractor(Qt.QWidget):
                 raise
             else:
                 self._filename = filename
-                self.setRom(rom)
+                self._context.setRom(rom)
 
-    def rom(self) -> GBAFile | None:
-        return self._rom
+    def context(self) -> Context:
+        return self._context
 
-    def setRom(self, rom: GBAFile | None):
-        self._rom = rom
+    def _onRomChanged(self, rom: GBAFile | None):
         self._paletteList.setRom(rom)
         self._sampleView.setRom(rom)
         self._dataView.setRom(rom)
         self._dataBrowser.setRom(rom)
         if rom is None:
-            self._memoryMapList.setObjectList([])
             self.setWindowTitle("No ROM loaded")
         else:
-            self._memoryMapList.setObjectList(rom.offsets)
             filename = os.path.basename(rom.filename)
             self.setWindowTitle(filename)
         self._updateNoMemoryMapSelected()
-
-    def memoryMapList(self) -> MemoryMapListModel:
-        return self._memoryMapList
 
     def _showMemoryMapContextMenu(self, pos: Qt.QPoint):
         globalPos = self._memView.mapToGlobal(pos)
@@ -448,14 +448,16 @@ class Extractor(Qt.QWidget):
         if button != Qt.QMessageBox.Yes:
             return
 
+        memoryMapList = self._context.memoryMapList()
         for mem in mems:
-            self._memoryMapList.removeObject(mem)
+            memoryMapList.removeObject(mem)
 
     def _showMemoryMapRawAsHexa(self):
         mem = self._memView.selectedMemoryMap()
         if mem is None:
             return
-        data = self._rom.extract_raw(mem)
+        rom = self._context.rom()
+        data = rom.extract_raw(mem)
         address = mem.byte_offset
         self._hexaView.setData(data, address=address)
         self._view.setCurrentWidget(self._hexaView)
@@ -478,7 +480,8 @@ class Extractor(Qt.QWidget):
         mem = self._memView.selectedMemoryMap()
         if mem is None:
             return
-        data = self._rom.extract_data(mem)
+        rom = self._context.rom()
+        data = rom.extract_data(mem)
         memory = io.BytesIO(data)
         if mem.byte_codec in (None, ByteCodec.RAW):
             address = mem.byte_offset
@@ -510,7 +513,8 @@ class Extractor(Qt.QWidget):
         if not result:
             return
 
-        data = self._rom.extract_raw(mem)
+        rom = self._context.rom()
+        data = rom.extract_raw(mem)
 
         filename = dialog.selectedFiles()[0]
         with open(filename, "wb") as f:
@@ -538,7 +542,8 @@ class Extractor(Qt.QWidget):
         if not result:
             return
 
-        data = self._rom.extract_data(mem)
+        rom = self._context.rom()
+        data = rom.extract_data(mem)
 
         filename = dialog.selectedFiles()[0]
         with open(filename, "wb") as f:
@@ -553,7 +558,8 @@ class Extractor(Qt.QWidget):
         self._saveFilename(None)
 
     def _saveFilename(self, filename: str | None):
-        if self._rom is None:
+        rom = self._context.romOrNone()
+        if rom is None:
             raise ValueError()
 
         if filename is None:
@@ -564,16 +570,16 @@ class Extractor(Qt.QWidget):
         assert filename is not None
 
         try:
-            rom = {}
-            rom["game_title"] = self._rom.game_title
-            rom["sha256"] = self._rom.sha256
+            romData: dict[str, typing.Any] = {}
+            romData["game_title"] = rom.game_title
+            romData["sha256"] = rom.sha256
             localDir = os.path.dirname(filename)
-            relativePath = os.path.relpath(self._rom.filename, start=localDir)
-            rom["local_filename"] = relativePath
+            relativePath = os.path.relpath(rom.filename, start=localDir)
+            romData["local_filename"] = relativePath
 
-            data = {}
-            data["rom"] = rom
-            for mem in self._rom.offsets:
+            data: dict[str, typing.Any] = {}
+            data["rom"] = romData
+            for mem in rom.offsets:
                 data[f"memory_map:{mem.byte_offset:08X}"] = mem.to_dict()
             with open(filename, "wt") as f:
                 rtoml.dump(data, f)
@@ -588,6 +594,8 @@ class Extractor(Qt.QWidget):
 
     def _debouncedMemoryMapSelectionChanged(self):
         mems = self._memView.selectedMemoryMaps()
+        current = self._memView.currentMemoryMap()
+        self._context._setCurrentMemoryMap(current)
         if len(mems) == 0:
             self._updateNoMemoryMapSelected()
         elif len(mems) == 1:
@@ -626,7 +634,6 @@ class Extractor(Qt.QWidget):
         """
         Allow to display and edit as much as possible.
         """
-        assert self._rom is not None
         self._byteCodecList.setEnabled(True)
         self._dataTypeList.setEnabled(True)
         self._colorModeList.setEnabled(True)
@@ -648,8 +655,9 @@ class Extractor(Qt.QWidget):
             reducedOffset = uniqueValueElseNone([m.image_palette_offset for m in mems])
             palette_mem = None
             if reducedOffset is not None:
+                rom = self._context.rom()
                 try:
-                    palette_mem = self._rom.memory_map_from_offset(reducedOffset)
+                    palette_mem = rom.memory_map_from_offset(reducedOffset)
                 except ValueError:
                     logging.warning("Palette 0x{mem.image_palette_offset:08X} does not exist")
                     palette_mem = None
@@ -669,7 +677,6 @@ class Extractor(Qt.QWidget):
         self._updateImage()
 
     def _updateMemoryMapSelected(self, mem: MemoryMap):
-        assert self._rom is not None
         self._byteCodecList.setEnabled(True)
         self._dataTypeList.setEnabled(True)
         self._colorModeList.setEnabled(True)
@@ -703,8 +710,9 @@ class Extractor(Qt.QWidget):
             if mem.image_palette_offset is None:
                 palette_mem = None
             else:
+                rom = self._context.rom()
                 try:
-                    palette_mem = self._rom.memory_map_from_offset(mem.image_palette_offset)
+                    palette_mem = rom.memory_map_from_offset(mem.image_palette_offset)
                 except ValueError:
                     logging.warning("Palette 0x{mem.image_palette_offset:08X} does not exist")
                     palette_mem = None
@@ -727,10 +735,12 @@ class Extractor(Qt.QWidget):
         byteCodec = self._byteCodecList.selectedValue()
         if byteCodec is None:
             return
+
+        memoryMapList = self._context.memoryMapList()
         for mem in self._memView.selectedMemoryMaps():
             mem.byte_codec = byteCodec
             mem.byte_payload = None
-            self._memoryMapList.updatedObject(mem)
+            memoryMapList.updatedObject(mem)
 
         self._updateShapes()
         self._updateImage()
@@ -739,9 +749,11 @@ class Extractor(Qt.QWidget):
         dataType = self._dataTypeList.selectedValue()
         if dataType is None:
             return
+
+        memoryMapList = self._context.memoryMapList()
         for mem in self._memView.selectedMemoryMaps():
             mem.data_type = dataType
-            self._memoryMapList.updatedObject(mem)
+            memoryMapList.updatedObject(mem)
 
         self._updateWidgets()
         self._updateShapes()
@@ -751,9 +763,11 @@ class Extractor(Qt.QWidget):
         paletteSize = self._paletteSizeList.selectedValue()
         if paletteSize is None:
             return
+
+        memoryMapList = self._context.memoryMapList()
         for mem in self._memView.selectedMemoryMaps():
             mem.palette_size = paletteSize
-            self._memoryMapList.updatedObject(mem)
+            memoryMapList.updatedObject(mem)
 
         self._updateWidgets()
         self._updateShapes()
@@ -770,6 +784,7 @@ class Extractor(Qt.QWidget):
 
     def _updateShapes(self):
         mems = self._memView.selectedMemoryMaps()
+        rom = self._context.rom()
         if len(mems) == 0:
             self._shapeList.setEnabled(False)
             with blockSignals(self._shapeList):
@@ -782,7 +797,7 @@ class Extractor(Qt.QWidget):
                     self._shapeList.clear()
             else:
                 self._shapeList.setEnabled(True)
-                image_shape = self._rom.image_shape(mem)
+                image_shape = rom.image_shape(mem)
                 with blockSignals(self._shapeList):
                     self._shapeList.clear()
                     if image_shape is not None:
@@ -804,7 +819,7 @@ class Extractor(Qt.QWidget):
                 self._shapeList.setEnabled(True)
                 with blockSignals(self._shapeList):
                     self._shapeList.clear()
-                    oneShape = self._rom.image_shape(mems[0])
+                    oneShape = rom.image_shape(mems[0])
                     shapes = guessed_shapes(oneShape[0] * oneShape[1])
                     for shape in shapes:
                         self._shapeList.addShape(shape)
@@ -865,6 +880,7 @@ class Extractor(Qt.QWidget):
             self._view.setCurrentWidget(self._nothing)
             return
 
+        rom = self._context.rom()
         try:
             data_type_name = "" if mem.data_type is None else mem.data_type.name
             if mem.data_type == DataType.GBA_ROM_HEADER:
@@ -881,7 +897,7 @@ class Extractor(Qt.QWidget):
             elif mem.data_type == DataType.UNKNOWN:
                 self._browseMemoryMapData()
             elif mem.data_type == DataType.TILE_SET:
-                data = self._rom.tile_set_data(mem)
+                data = rom.tile_set_data(mem)
                 self._tileSetView.setData(data)
                 self._view.setCurrentWidget(self._tileSetView)
             else:
@@ -902,14 +918,14 @@ class Extractor(Qt.QWidget):
         Raises:
             Exception: In case of problem
         """
-        assert self._rom is not None
+        rom = self._context.rom()
         if mem.data_type == DataType.PALETTE:
-            result = self._rom.palette_data(mem)
+            result = rom.palette_data(mem)
             # FIXME: Handle explicitly 16 and 256
             result.shape = -1, 16, result.shape[2]
             return result
 
         if mem.data_type == DataType.IMAGE:
-            return self._rom.image_data(mem)
+            return rom.image_data(mem)
 
         raise ValueError(f"No image representation for memory map of type {mem.data_type}")

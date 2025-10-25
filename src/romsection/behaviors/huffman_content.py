@@ -34,7 +34,7 @@ class SplitHuffmanContent(BehaviorAtRomOffset):
         context = self.context()
         rom = context.rom()
 
-        mem = context._memView.selectedMemoryMap()
+        mem = context.currentMemoryMap()
         if mem is None:
             return
 
@@ -54,7 +54,7 @@ class SplitHuffmanContent(BehaviorAtRomOffset):
 
         if header[0] not in (0x24, 0x28):
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Error",
                 "The selected byte is not a valid huffman"
             )
@@ -66,13 +66,12 @@ class SplitHuffmanContent(BehaviorAtRomOffset):
             data_type=DataType.UNKNOWN,
         )
 
-        with qt_utils.exceptionAsMessageBox(context):
+        with qt_utils.exceptionAsMessageBox(context.mainWidget()):
             byte_payload = rom.byte_payload(dataMem)
             dataMem.byte_payload = byte_payload
 
             memoryMapList = context.memoryMapList()
-            with qt_utils.exceptionAsMessageBox(context):
-                splitMemoryMap(memoryMapList, mem, dataMem)
+            splitMemoryMap(memoryMapList, mem, dataMem)
 
 
 class SearchHuffmanContent(search.SearchContentBehavior):
@@ -124,7 +123,7 @@ class SearchSimilarHuffmanContent(BehaviorAtRomOffset):
         context = self.context()
         rom = context.rom()
 
-        mem = context._memView.selectedMemoryMap()
+        mem = context.currentMemoryMap()
         if mem is None:
             return
 
@@ -144,7 +143,7 @@ class SearchSimilarHuffmanContent(BehaviorAtRomOffset):
 
         if header[0] not in (0x24, 0x28):
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Error",
                 "The selected byte is not a valid huffman"
             )

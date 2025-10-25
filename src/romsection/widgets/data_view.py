@@ -13,6 +13,8 @@ from .sappy_instrument_bank import SappyInstrumentBank
 from .hexa_array_view import HexaArrayView
 from .hexa_struct_view import HexaStructView
 from ..behaviors import sappy_content
+from ..context import Context
+from ..behaviors.behavior import Behavior
 
 
 class Description(typing.NamedTuple):
@@ -73,8 +75,7 @@ class DataView(Qt.QWidget):
         Qt.QWidget.__init__(self, parent=parent)
         self.setSizePolicy(Qt.QSizePolicy.Expanding, Qt.QSizePolicy.Expanding)
 
-        context = parent
-
+        self.__context: Context | None = None
         self.__memoryMap: MemoryMap | None = None
         self.__rom: GBAFile | None = None
 
@@ -88,17 +89,20 @@ class DataView(Qt.QWidget):
         self.__statusbar = Qt.QStatusBar(self)
 
         self.__searchSappySongHeaders = sappy_content.SearchSappySongHeadersFromSongTable()
-        self.__searchSappySongHeaders.setContext(context)
         self.__searchSappyTrackers = sappy_content.SearchSappyTracksFromSongTable()
-        self.__searchSappyTrackers.setContext(context)
         self.__searchSappyKeySplitTable = sappy_content.SearchSappyKeySplitTableFromInstrumentTable()
-        self.__searchSappyKeySplitTable.setContext(context)
         self.__searchSappySample = sappy_content.SearchSappySampleFromInstrumentTable()
-        self.__searchSappySample.setContext(context)
         self.__searchInstrumentAddress = sappy_content.SearchInstrumentAddress()
-        self.__searchInstrumentAddress.setContext(context)
         self.__searchSongHeaderAddress = sappy_content.SearchSongHeaderAddress()
-        self.__searchSongHeaderAddress.setContext(context)
+
+        self.__behaviors: list[Behavior] = [
+            self.__searchSappySongHeaders,
+            self.__searchSappyTrackers,
+            self.__searchSappyKeySplitTable,
+            self.__searchSappySample,
+            self.__searchInstrumentAddress,
+            self.__searchSongHeaderAddress,
+        ]
 
         spacer = Qt.QWidget(self.__toolbar)
         spacer.setSizePolicy(Qt.QSizePolicy.Expanding, Qt.QSizePolicy.Expanding)
@@ -198,6 +202,11 @@ class DataView(Qt.QWidget):
     def setMemoryMap(self, memoryMap: MemoryMap | None):
         self.__memoryMap = memoryMap
         self._updateData()
+
+    def setContext(self, context: Context | None):
+        self.__context = context
+        for b in self.__behaviors:
+            b.setContext(context)
 
     def rom(self) -> GBAFile | None:
         return self.__rom
