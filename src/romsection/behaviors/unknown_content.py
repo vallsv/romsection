@@ -19,8 +19,10 @@ class CreateUncoveredMemory(Behavior):
         rom = context.rom()
         memoryMapList = context.memoryMapList()
         try:
-            with exceptionAsMessageBox(context.mainWidget()):
-
+            with (
+                exceptionAsMessageBox(context.mainWidget()),
+                context.macroCommands("Create UNKNOWN memorymaps")
+            ):
                 offsets = list(rom.offsets)
                 # offsets = sorted(offsets, keys=lambda v: v.byte_offset)
                 mem_end = MemoryMap(
@@ -44,7 +46,6 @@ class CreateUncoveredMemory(Behavior):
                             byte_codec=ByteCodec.RAW,
                             data_type=DataType.UNKNOWN,
                         )
-                        # FIXME: Have to be merged to the previous command
                         command = InsertMemoryMapCommand()
                         command.setCommand(index, mem)
                         context.pushCommand(command)
@@ -80,7 +81,10 @@ class ReplaceUnknownByPadding(Behavior):
         rom = context.rom()
         memoryMapList = context.memoryMapList()
         try:
-            with exceptionAsMessageBox(context.mainWidget()):
+            with (
+                exceptionAsMessageBox(context.mainWidget()),
+                context.macroCommands("Replace UNKNOWN by PADDING")
+            ):
                 for mem in memoryMapList:
                     if mem.data_type != DataType.UNKNOWN:
                         continue
@@ -95,7 +99,7 @@ class ReplaceUnknownByPadding(Behavior):
                     #        but i feel like sometimes there is
                     #        surprisingly unaligned padding
                     newMem = mem.replace(data_type=DataType.PADDING)
-                    # FIXME: Have to be merged to the previous command
+
                     command = UpdateMemoryMapCommand()
                     command.setCommand(mem, newMem)
                     context.pushCommand(command)
@@ -128,14 +132,16 @@ class RemoveUnknown(Behavior):
         rom = context.rom()
         memoryMapList = context.memoryMapList()
         try:
-            with exceptionAsMessageBox(context.mainWidget()):
+            with (
+                exceptionAsMessageBox(context.mainWidget()),
+                context.macroCommands("Remove all UNKNOWN memorymap")
+            ):
                 for mem in reversed(memoryMapList):
                     if mem.byte_codec != ByteCodec.RAW:
                         continue
                     if mem.data_type != DataType.UNKNOWN:
                         continue
 
-                    # FIXME: Have to be merged to the previous one
                     command = RemoveMemoryMapCommand()
                     command.setCommand(mem)
                     context.pushCommand(command)

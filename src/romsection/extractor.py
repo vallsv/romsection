@@ -463,10 +463,11 @@ class Extractor(Qt.QWidget):
             return
 
         context = self._context
-        for mem in mems:
-            command = RemoveMemoryMapCommand()
-            command.setCommand(mem)
-            context.pushCommand(command)
+        with context.macroCommands("Remove selected memorymap"):
+            for mem in reversed(mems):
+                command = RemoveMemoryMapCommand()
+                command.setCommand(mem)
+                context.pushCommand(command)
 
     def _showMemoryMapRawAsHexa(self):
         mem = self._memView.selectedMemoryMap()

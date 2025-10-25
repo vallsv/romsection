@@ -267,7 +267,6 @@ class SearchContentBehavior(Behavior):
                             notAdded.add((newMem, "Parent memory have a data type"))
                             continue
                         try:
-                            # FIXME: Have to be merged with the previous one
                             command = ExtractMemoryMapCommand()
                             command.setCommand(mem, newMem)
                             context.pushCommand(command)
@@ -293,14 +292,16 @@ class SearchContentBehavior(Behavior):
         dialog.registerRunnable(runnable)
         pool.start(runnable)
 
-        timer = Qt.QTimer(context.mainWidget())
-        timer.timeout.connect(flushQueue)
-        timer.start(200)
+        with context.macroCommands("Extract found memorymaps"):
+            timer = Qt.QTimer(context.mainWidget())
+            timer.timeout.connect(flushQueue)
+            timer.start(200)
 
-        dialog.exec()
+            dialog.exec()
 
-        timer.stop()
-        flushQueue()
+            timer.stop()
+            flushQueue()
+
         Qt.QGuiApplication.restoreOverrideCursor()
 
         msg = f"{nbFound} potential location was found."

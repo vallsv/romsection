@@ -1,3 +1,4 @@
+import contextlib
 from PyQt5 import Qt
 from .widgets.memory_map_list_model import MemoryMapListModel
 from .gba_file import GBAFile
@@ -58,3 +59,12 @@ class Context(Qt.QObject):
     def pushCommand(self, command: Qt.QUndoCommand):
         command.setContext(self)
         self._undoStack.push(command)
+
+    @contextlib.contextmanager
+    def macroCommands(self, text: str):
+        undoStack = self._undoStack
+        undoStack.beginMacro(text)
+        try:
+            yield
+        finally:
+            undoStack.endMacro()
