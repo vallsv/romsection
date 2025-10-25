@@ -6,7 +6,7 @@ from ..model import MemoryMap, ByteCodec, DataType
 from . import search
 from .behavior import Behavior
 from ..parsers import lz77
-from ._utils import splitMemoryMap
+from ..commands.extract_memorymap import ExtractMemoryMapCommand
 from .. import qt_utils
 from .common import BehaviorAtRomOffset
 
@@ -66,9 +66,9 @@ class SplitLZ77Content(BehaviorAtRomOffset):
                 byte_payload=byte_payload,
                 data_type=DataType.UNKNOWN,
             )
-
-            memoryMapList = context.memoryMapList()
-            splitMemoryMap(memoryMapList, mem, dataMem)
+            command = ExtractMemoryMapCommand()
+            command.setCommand(mem, dataMem)
+            context.pushCommand(command)
 
 
 class SearchLZ77Content(search.SearchContentBehavior):

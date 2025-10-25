@@ -10,7 +10,7 @@ from PyQt5 import Qt
 from ..gba_file import GBAFile
 from ..model import MemoryMap, ByteCodec, DataType
 from .behavior import Behavior
-from ._utils import splitMemoryMap
+from ..commands.extract_memorymap import ExtractMemoryMapCommand
 
 
 class Signals(Qt.QObject):
@@ -267,7 +267,10 @@ class SearchContentBehavior(Behavior):
                             notAdded.add((newMem, "Parent memory have a data type"))
                             continue
                         try:
-                            splitMemoryMap(memoryMapList, mem, newMem)
+                            # FIXME: Have to be merged with the previous one
+                            command = ExtractMemoryMapCommand()
+                            command.setCommand(mem, newMem)
+                            context.pushCommand(command)
                         except RuntimeError as e:
                             notAdded.add((newMem, e.args[0]))
                     else:

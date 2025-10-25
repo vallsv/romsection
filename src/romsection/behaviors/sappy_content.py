@@ -9,7 +9,7 @@ from ..format_utils import format_address
 from ..model import MemoryMap, ByteCodec, DataType
 from ..parsers import sappy_utils
 from ..widgets.memory_map_list_model import MemoryMapListModel
-from ._utils import splitMemoryMap
+from ..commands.extract_memorymap import ExtractMemoryMapCommand
 from .common import BehaviorAtRomOffset
 from .. import qt_utils
 
@@ -140,9 +140,10 @@ class SplitSappySample(BehaviorAtRomOffset):
                 byte_codec=ByteCodec.RAW,
                 data_type=DataType.SAMPLE_SAPPY,
             )
-
-            memoryMapList = context.memoryMapList()
-            splitMemoryMap(memoryMapList, mem, sampleMem)
+            # FIXME: Have to be merged with the prevous one
+            command = ExtractMemoryMapCommand()
+            command.setCommand(mem, sampleMem)
+            context.pushCommand(command)
 
 
 class SplitSappySamplePlusOne(SplitSappySample):
@@ -303,7 +304,6 @@ class SearchSappySongHeadersFromSongTable(Behavior):
                 )
             return
 
-        memoryMapList = context.memoryMapList()
         invalid_header = []
         was_extracted = 0
 
@@ -326,7 +326,10 @@ class SearchSappySongHeadersFromSongTable(Behavior):
                     data_type=DataType.MUSIC_SONG_HEADER_SAPPY,
                 )
 
-                splitMemoryMap(memoryMapList, mem, newMem)
+                # FIXME: Have to be merged with the prevous one
+                command = ExtractMemoryMapCommand()
+                command.setCommand(mem, newMem)
+                context.pushCommand(command)
                 was_extracted += 1
 
         if was_extracted:
@@ -408,7 +411,6 @@ class SearchSappyTracksFromSongTable(Behavior):
         trackOffsets = [d - 0x8000000 for d in trackOffsets]
         trackOffsets = sorted(list( set(trackOffsets)))
 
-        memoryMapList = context.memoryMapList()
         invalid_description = []
         invalid_content = []
         was_extracted = 0
@@ -442,7 +444,10 @@ class SearchSappyTracksFromSongTable(Behavior):
                 data_type=DataType.MUSIC_TRACK_SAPPY,
             )
 
-            splitMemoryMap(memoryMapList, mem, newMem)
+            # FIXME: Have to be merged with the prevous one
+            command = ExtractMemoryMapCommand()
+            command.setCommand(mem, newMem)
+            context.pushCommand(command)
             was_extracted += 1
 
         if was_extracted:
@@ -540,7 +545,6 @@ class SearchSappyKeySplitTableFromInstrumentTable(Behavior):
                 )
             return
 
-        memoryMapList = context.memoryMapList()
         invalid_header = []
         was_extracted = 0
 
@@ -562,7 +566,10 @@ class SearchSappyKeySplitTableFromInstrumentTable(Behavior):
                     data_type=DataType.MUSIC_KEY_SPLIT_TABLE_SAPPY,
                 )
 
-                splitMemoryMap(memoryMapList, mem, newMem)
+                # FIXME: Have to be merged with the prevous one
+                command = ExtractMemoryMapCommand()
+                command.setCommand(mem, newMem)
+                context.pushCommand(command)
                 was_extracted += 1
 
         if was_extracted:
@@ -660,7 +667,6 @@ class SearchSappySampleFromInstrumentTable(Behavior):
                 )
             return
 
-        memoryMapList = context.memoryMapList()
         invalid_header = []
         was_extracted = 0
 
@@ -686,7 +692,10 @@ class SearchSappySampleFromInstrumentTable(Behavior):
                     data_type=DataType.SAMPLE_SAPPY,
                 )
 
-                splitMemoryMap(memoryMapList, mem, newMem)
+                # FIXME: Have to be merged with the previous one
+                command = ExtractMemoryMapCommand()
+                command.setCommand(mem, newMem)
+                context.pushCommand(command)
                 was_extracted += 1
 
         if was_extracted:

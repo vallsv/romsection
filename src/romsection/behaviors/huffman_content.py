@@ -12,7 +12,7 @@ from .behavior import Behavior
 from ..parsers import huffman
 from .common import BehaviorAtRomOffset
 from .. import qt_utils
-from ._utils import splitMemoryMap
+from ..commands.extract_memorymap import ExtractMemoryMapCommand
 
 
 class SplitHuffmanContent(BehaviorAtRomOffset):
@@ -70,9 +70,9 @@ class SplitHuffmanContent(BehaviorAtRomOffset):
                 byte_payload=byte_payload,
                 data_type=DataType.UNKNOWN,
             )
-
-            memoryMapList = context.memoryMapList()
-            splitMemoryMap(memoryMapList, mem, dataMem)
+            command = ExtractMemoryMapCommand()
+            command.setCommand(mem, dataMem)
+            context.pushCommand(command)
 
 
 class SearchHuffmanContent(search.SearchContentBehavior):

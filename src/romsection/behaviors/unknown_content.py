@@ -3,6 +3,9 @@ from ..gba_file import GBAFile
 from .behavior import Behavior
 from ..qt_utils import exceptionAsMessageBox
 from ..model import MemoryMap, ByteCodec, DataType
+from ..commands.remove_memorymap import RemoveMemoryMapCommand
+from ..commands.update_memorymap import UpdateMemoryMapCommand
+from ..commands.insert_memorymap import InsertMemoryMapCommand
 
 
 class CreateUncoveredMemory(Behavior):
@@ -41,7 +44,10 @@ class CreateUncoveredMemory(Behavior):
                             byte_codec=ByteCodec.RAW,
                             data_type=DataType.UNKNOWN,
                         )
-                        memoryMapList.insertObject(index, mem)
+                        # FIXME: Have to be merged to the previous command
+                        command = InsertMemoryMapCommand()
+                        command.setCommand(index, mem)
+                        context.pushCommand(command)
                         index += 1
                         found += 1
                     index += 1
@@ -88,8 +94,11 @@ class ReplaceUnknownByPadding(Behavior):
                     # FIXME: We could chech adress alignement
                     #        but i feel like sometimes there is
                     #        surprisingly unaligned padding
-                    mem.data_type = DataType.PADDING
-                    memoryMapList.updatedObject(mem)
+                    newMem = mem.replace(data_type=DataType.PADDING)
+                    # FIXME: Have to be merged to the previous command
+                    command = UpdateMemoryMapCommand()
+                    command.setCommand(mem, newMem)
+                    context.pushCommand(command)
                     found += 1
         finally:
             Qt.QGuiApplication.restoreOverrideCursor()
@@ -125,7 +134,11 @@ class RemoveUnknown(Behavior):
                         continue
                     if mem.data_type != DataType.UNKNOWN:
                         continue
-                    memoryMapList.removeObject(mem)
+
+                    # FIXME: Have to be merged to the previous one
+                    command = RemoveMemoryMapCommand()
+                    command.setCommand(mem)
+                    context.pushCommand(command)
                     found += 1
         finally:
             Qt.QGuiApplication.restoreOverrideCursor()

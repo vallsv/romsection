@@ -6,7 +6,6 @@ from ..model import MemoryMap, ByteCodec, DataType
 from . import search
 from .behavior import Behavior
 from ..parsers import lz77
-from ._utils import splitMemoryMap
 from .. import qt_utils
 
 

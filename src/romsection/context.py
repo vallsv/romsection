@@ -14,10 +14,14 @@ class Context(Qt.QObject):
         self._memoryMapList = MemoryMapListModel(self)
         self._rom: GBAFile | None = None
         self._currentMemoryMap: MemoryMap | None = None
+        self._undoStack = Qt.QUndoStack(self)
 
     def mainWidget(self) -> Qt.QWidget:
         assert self._mainWidget is not None
         return self._mainWidget
+
+    def undoStack(self) -> Qt.QUndoStack:
+        return self._undoStack
 
     def memoryMapList(self) -> MemoryMapListModel:
         return self._memoryMapList
@@ -35,6 +39,7 @@ class Context(Qt.QObject):
             self._memoryMapList.setObjectList([])
         else:
             self._memoryMapList.setObjectList(rom.offsets)
+        self._undoStack.clear()
         self.romChanged.emit(rom)
 
     def _setCurrentMemoryMap(self, mem: MemoryMap | None):
@@ -44,4 +49,12 @@ class Context(Qt.QObject):
         return self._currentMemoryMap
 
     def updateMemoryMap(self, previous: MemoryMap, next: MemoryMap):
-        self._memoryMapList.replaceObject(previous, next)
+        from .commands.update_memorymap import UpdateMemoryMapCommand
+        command = UpdateMemoryMapCommand()
+        command.setContext(self)
+        command.setCommand(previous, next)
+        self._undoStack.push(command)
+
+    def pushCommand(self, command: Qt.QUndoCommand):
+        command.setContext(self)
+        self._undoStack.push(command)

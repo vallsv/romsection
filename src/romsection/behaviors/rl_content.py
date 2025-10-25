@@ -12,7 +12,7 @@ from ..model import MemoryMap, ByteCodec, DataType
 from ..parsers import rl
 from .. import qt_utils
 from . import search
-from ._utils import splitMemoryMap
+from ..commands.extract_memorymap import ExtractMemoryMapCommand
 from .common import BehaviorAtRomOffset
 
 
@@ -71,9 +71,9 @@ class SplitRlContent(BehaviorAtRomOffset):
                 byte_payload=byte_payload,
                 data_type=DataType.UNKNOWN,
             )
-
-            memoryMapList = context.memoryMapList()
-            splitMemoryMap(memoryMapList, mem, dataMem)
+            command = ExtractMemoryMapCommand()
+            command.setCommand(mem, dataMem)
+            context.pushCommand(command)
 
 
 class SearchRlContent(search.SearchContentBehavior):

@@ -3,7 +3,7 @@ import io
 import numpy
 from PyQt5 import Qt
 
-from ..qt_utils import blockSignals
+from .. import qt_utils
 from ..gba_file import GBAFile
 from ..behaviors.common import BehaviorAtRomOffset
 from ..behaviors import sappy_content
@@ -22,6 +22,7 @@ from .combo_box import ComboBox
 from .hexa_view import HexaView
 from ..context import Context
 from ..behaviors.behavior import Behavior
+from ..commands.cut_memorymap import CutMemoryMapCommand
 
 
 class PixelTools:
@@ -253,11 +254,11 @@ class DataBrowser(Qt.QWidget):
 
     def __onSelectionChanged(self, selection: tuple[int, int] | None):
         # Assume each widget have the same address origin
-        with blockSignals(self.__wave):
+        with qt_utils.blockSignals(self.__wave):
             self.__wave.setSelection(selection)
-        with blockSignals(self.__pixel):
+        with qt_utils.blockSignals(self.__pixel):
             self.__pixel.setSelection(selection)
-        with blockSignals(self.__hexa):
+        with qt_utils.blockSignals(self.__hexa):
             if selection is None:
                 address = None
             else:
@@ -286,11 +287,11 @@ class DataBrowser(Qt.QWidget):
         return self.__address + selection[0], self.__address + selection[1]
 
     def __positionChanged(self, position: int):
-        with blockSignals(self.__pixel):
+        with qt_utils.blockSignals(self.__pixel):
             self.__pixel.setPosition(position)
-        with blockSignals(self.__wave):
+        with qt_utils.blockSignals(self.__wave):
             self.__wave.setPosition(position)
-        with blockSignals(self.__hexa):
+        with qt_utils.blockSignals(self.__hexa):
             self.__hexa.setPosition(position)
 
     def setPixelVisible(self, visible: bool):
@@ -472,8 +473,8 @@ class DataBrowser(Qt.QWidget):
             return
 
         split = Qt.QAction(menu)
-        split.setText("Split memory map before this address")
-        split.triggered.connect(self._splitMemoryMap)
+        split.setText("Cut memory map before this byte")
+        split.triggered.connect(self._cutMemoryMap)
         menu.addAction(split)
 
         menu.addSeparator()
@@ -532,33 +533,19 @@ class DataBrowser(Qt.QWidget):
 
         menu.exec(globalPos)
 
-    def _splitMemoryMap(self):
+    def _cutMemoryMap(self):
         """Split the memory map at the selection"""
         mem = self.__mem
         if mem is None:
             return
 
-        offset = self.__hexa.selectedOffset()
-        if offset is None:
-            return
+        context = self.__context
 
-        prevMem = MemoryMap(
-            byte_offset=mem.byte_offset,
-            byte_length=offset - mem.byte_offset,
-            data_type=DataType.UNKNOWN,
-        )
+        with qt_utils.exceptionAsMessageBox(context.mainWidget()):
+            offset = self.__hexa.selectedOffset()
+            if offset is None:
+                raise ValueError("No offset selected")
 
-        nextMem = MemoryMap(
-            byte_offset=offset,
-            byte_length=mem.byte_offset + mem.byte_length - offset,
-            data_type=DataType.UNKNOWN,
-        )
-
-        memoryMapList = self.__context.memoryMapList()
-        index = memoryMapList.objectIndex(mem).row()
-        memoryMapList.removeObject(mem)
-        if prevMem.byte_length:
-            memoryMapList.insertObject(index, prevMem)
-            index = index + 1
-        if nextMem.byte_length:
-            memoryMapList.insertObject(index, nextMem)
+            command = CutMemoryMapCommand()
+            command.setCommand(mem, offset)
+            context.pushCommand(command)

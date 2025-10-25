@@ -42,6 +42,7 @@ from .behaviors import sappy_content
 from .behaviors import unknown_content
 from .behaviors.info import InfoDialog
 from .parsers import gba_utils
+from .commands.remove_memorymap import RemoveMemoryMapCommand
 
 
 def uniqueValueElseNone(data: list[typing.Any]):
@@ -65,6 +66,7 @@ class Extractor(Qt.QWidget):
 
         self._dialogDirectory = os.getcwd()
         self._filename: str | None = None
+        self._displayedMemoryMap: MemoryMap | None = None
 
         style = Qt.QApplication.style()
         toolbar = Qt.QToolBar(self)
@@ -86,6 +88,17 @@ class Extractor(Qt.QWidget):
         saveAsAction.setText("Save the ROM dissection into another file")
         saveAsAction.setIcon(Qt.QIcon("icons:save-as.png"))
         toolbar.addAction(saveAsAction)
+
+        toolbar.addSeparator()
+
+        undoStack = context.undoStack()
+        undoAction = undoStack.createUndoAction(self)
+        undoAction.setIcon(Qt.QIcon("icons:undo.png"))
+        toolbar.addAction(undoAction)
+
+        redoAction = undoStack.createRedoAction(self)
+        redoAction.setIcon(Qt.QIcon("icons:redo.png"))
+        toolbar.addAction(redoAction)
 
         toolbar.addSeparator()
 
@@ -261,7 +274,8 @@ class Extractor(Qt.QWidget):
 
         self._memoryMapFilter.filterChanged.connect(self.__setMemoryMapFilter)
         context.romChanged.connect(self._onRomChanged)
-
+        undoAction.triggered.connect(self._onMemoryMapSelectionChanged)
+        redoAction.triggered.connect(self._onMemoryMapSelectionChanged)
         self._onRomChanged(None)
 
     def _showInfo(self):
@@ -448,9 +462,11 @@ class Extractor(Qt.QWidget):
         if button != Qt.QMessageBox.Yes:
             return
 
-        memoryMapList = self._context.memoryMapList()
+        context = self._context
         for mem in mems:
-            memoryMapList.removeObject(mem)
+            command = RemoveMemoryMapCommand()
+            command.setCommand(mem)
+            context.pushCommand(command)
 
     def _showMemoryMapRawAsHexa(self):
         mem = self._memView.selectedMemoryMap()
@@ -940,9 +956,14 @@ class Extractor(Qt.QWidget):
         mem = self._memView.currentMemoryMap()
         if mem is None:
             self._view.setCurrentWidget(self._nothing)
+            self._displayedMemoryMap = None
             return
 
         mem = self._updatePayload(mem)
+        if self._displayedMemoryMap is mem:
+            return
+        self._displayedMemoryMap = mem
+
         rom = self._context.rom()
         try:
             data_type_name = "" if mem.data_type is None else mem.data_type.name
