@@ -28,6 +28,12 @@ class ObjectListModel(Qt.QAbstractItemModel):
         self.__items[index] = obj
         self.dataChanged.emit(index, index)
 
+    def replaceObject(self, currentObj: typing.Any, nextObj: typing.Any):
+        """Replace an existing item of this list"""
+        index = self.objectIndex(currentObj)
+        self.__items[index.row()] = nextObj
+        self.dataChanged.emit(index, index)
+
     def updatedObject(self, obj: typing.Any):
         """To be called when a mutable item was changed"""
         index = self.objectIndex(obj)
