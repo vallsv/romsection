@@ -50,7 +50,7 @@ class SplitHuffmanContent(BehaviorAtRomOffset):
             byte_length=4,
             data_type=DataType.UNKNOWN,
         )
-        header = rom.extract_data(headerMem)
+        header = rom.extract_raw(headerMem)
 
         if header[0] not in (0x24, 0x28):
             Qt.QMessageBox.information(
@@ -140,7 +140,7 @@ class SearchSimilarHuffmanContent(BehaviorAtRomOffset):
             byte_length=4,
             data_type=DataType.UNKNOWN,
         )
-        header = rom.extract_data(headerMem)
+        header = rom.extract_raw(headerMem)
 
         if header[0] not in (0x24, 0x28):
             Qt.QMessageBox.information(

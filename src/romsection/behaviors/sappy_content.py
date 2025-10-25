@@ -124,12 +124,12 @@ class SplitSappySample(BehaviorAtRomOffset):
         if address is None:
             return
 
-        header = MemoryMap(
+        headerMap = MemoryMap(
             byte_offset=address,
             byte_length=sappy_utils.SAMPLE_HEADER_SIZE,
             data_type=DataType.UNKNOWN,
         )
-        data = rom.extract_data(header)
+        data = rom.extract_raw(headerMap)
 
         with qt_utils.exceptionAsMessageBox(context.mainWidget()):
             header = sappy_utils.SampleHeader.parse(data)

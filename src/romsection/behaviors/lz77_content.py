@@ -46,7 +46,7 @@ class SplitLZ77Content(BehaviorAtRomOffset):
             byte_length=4,
             data_type=DataType.UNKNOWN,
         )
-        header = rom.extract_data(headerMem)
+        header = rom.extract_raw(headerMem)
 
         if header[0] != 0x10:
             Qt.QMessageBox.information(
@@ -136,7 +136,7 @@ class SearchSimilarLZ77Content(BehaviorAtRomOffset):
             byte_length=4,
             data_type=DataType.UNKNOWN,
         )
-        header = rom.extract_data(headerMem)
+        header = rom.extract_raw(headerMem)
 
         if header[0] != 0x10:
             Qt.QMessageBox.information(

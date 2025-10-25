@@ -51,7 +51,7 @@ class SplitRlContent(BehaviorAtRomOffset):
             byte_length=4,
             data_type=DataType.UNKNOWN,
         )
-        header = rom.extract_data(headerMem)
+        header = rom.extract_raw(headerMem)
 
         if header[0] != 0x30:
             Qt.QMessageBox.information(
@@ -141,7 +141,7 @@ class SearchSimilarRlContent(BehaviorAtRomOffset):
             byte_length=4,
             data_type=DataType.UNKNOWN,
         )
-        header = rom.extract_data(headerMem)
+        header = rom.extract_raw(headerMem)
 
         if header[0] != 0x30:
             Qt.QMessageBox.information(
