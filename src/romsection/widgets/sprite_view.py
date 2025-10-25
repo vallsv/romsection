@@ -60,4 +60,6 @@ class SpriteView(Qt.QWidget):
         self._pixmap.setPixmap(pixmap)
         imageSize = image.size()
         self._pixmap.setOffset(-imageSize.width() / 2, -imageSize.height() / 2)
-        self._fitData()
+
+        # FIXME: This should not be needed but the very first frame is never fit
+        Qt.QTimer.singleShot(0, self._fitData)
