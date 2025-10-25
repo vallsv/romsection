@@ -88,7 +88,13 @@ class MemoryMapProxyModel(Qt.QSortFilterProxyModel):
         if column == self.ColumnMemory:
             mem = sourceIndex.data(ObjectListModel.ObjectRole)
             if role in (Qt.Qt.DisplayRole, Qt.Qt.EditRole):
-                uncompressed = mem.byte_payload or mem.byte_length or 0
+                byteCodec = mem.byte_codec
+                if byteCodec is None or byteCodec == ByteCodec.RAW:
+                    uncompressed = mem.byte_length
+                elif mem.byte_payload is None:
+                    return "?"
+                else:
+                    uncompressed = mem.byte_payload
                 return format_size(uncompressed)
             if role == Qt.Qt.ToolTipRole:
                 compressed = mem.byte_length
@@ -97,6 +103,10 @@ class MemoryMapProxyModel(Qt.QSortFilterProxyModel):
 
                 if byteCodec is None or byteCodec == ByteCodec.RAW:
                     tooltip.addRow("Size", f"{compressed} B")
+                elif mem.byte_payload is None:
+                    tooltip.addRow("Size", f"Not yet loaded")
+                    tooltip.addRow("Codec", f"{byteCodec.name}")
+                    tooltip.addRow("Compressed", f"{compressed} B")
                 else:
                     uncompressed = mem.byte_payload or mem.byte_length or 0
                     compression = f"×{uncompressed / compressed:0.2f}" if compressed != 0 else "NA"
