@@ -203,37 +203,32 @@ class GBAFile:
         # FIXME: Guess something closer to a square
         return 1, nb_pixels
 
-    def byte_payload(self, mem: MemoryMap) -> int:
-        """Return the size of the data content, in bytes"""
-        if mem.byte_codec in [None, ByteCodec.RAW]:
-            if mem.byte_length is None:
-                raise ValueError(f"Memory map 0x{mem.byte_offset:08X} have inconcistente description")
-            return mem.byte_length
-
-        if mem.byte_payload is not None:
-            return mem.byte_payload
+    def check_codec(self, byte_offset: int, byte_codec: ByteCodec) -> tuple[int, int]:
+        """
+        Return the length and payload of an encoded content, in bytes.
+        """
+        if byte_codec in [None, ByteCodec.RAW]:
+            raise ValueError(f"Checking RAW data is pointless")
 
         stream = self._f
 
-        stream.seek(mem.byte_offset, os.SEEK_SET)
-        byte_codec = mem.byte_codec
+        stream.seek(byte_offset, os.SEEK_SET)
 
         if byte_codec == ByteCodec.LZ77:
-            size = lz77.dryrun(stream)
+            payload = lz77.dryrun(stream)
         elif byte_codec == ByteCodec.HUFFMAN:
-            size = huffman.dryrun(stream)
+            payload = huffman.dryrun(stream)
         elif byte_codec == ByteCodec.RL:
-            size = rl.dryrun(stream)
+            payload = rl.dryrun(stream)
         elif byte_codec == ByteCodec.HUFFMAN_OVER_LZ77:
             intermediate = huffman.decompress(stream)
             stream2 = io.BytesIO(intermediate)
-            size = lz77.dryrun(stream2)
+            payload = lz77.dryrun(stream2)
         else:
-            raise ValueError(f"Memory map 0x{mem.byte_offset:08X} have unexpected codec {mem.byte_codec}")
+            raise ValueError(f"Memory offset 0x{byte_offset:08X} is not encoded with {byte_codec}")
 
         byte_end = stream.tell()
-        mem.byte_length = byte_end - mem.byte_offset
-        return size
+        return byte_end - byte_offset, payload
 
     def image_shape(self, mem: MemoryMap) -> tuple[int, int] | None:
         """Only return the image shape.
@@ -246,7 +241,13 @@ class GBAFile:
         if mem.image_shape is not None:
             return mem.image_shape
         else:
-            size = self.byte_payload(mem)
+            if mem.byte_payload is not None:
+                size = mem.byte_payload
+            elif mem.byte_codec is None or mem.byte_codec == ByteCodec.RAW:
+                size = mem.byte_length
+            else:
+                # FIXME: This have to be cached
+                _, size = self.check_codec(mem.byte_offset, mem.byte_codec)
             nb_pixels = pixels_per_byte_length(mem.image_color_mode or ImageColorMode.INDEXED_8BIT, size)
             return self.guess_first_image_shape(nb_pixels)
 

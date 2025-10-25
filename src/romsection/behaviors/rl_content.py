@@ -61,15 +61,16 @@ class SplitRlContent(BehaviorAtRomOffset):
             )
             return
 
-        dataMem = MemoryMap(
-            byte_codec=ByteCodec.RL,
-            byte_offset=address,
-            data_type=DataType.UNKNOWN,
-        )
-
+        byte_codec = ByteCodec.RL
         with qt_utils.exceptionAsMessageBox(context.mainWidget()):
-            byte_payload = rom.byte_payload(dataMem)
-            dataMem.byte_payload = byte_payload
+            byte_length, byte_payload = rom.check_codec(address, byte_codec)
+            dataMem = MemoryMap(
+                byte_codec=byte_codec,
+                byte_offset=address,
+                byte_length=byte_length,
+                byte_payload=byte_payload,
+                data_type=DataType.UNKNOWN,
+            )
 
             memoryMapList = context.memoryMapList()
             splitMemoryMap(memoryMapList, mem, dataMem)
