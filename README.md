@@ -13,13 +13,26 @@ That's tuff process.
 
 # Features
 
-- Image
+Display for image, sound, binary struct, table of binary struct.
+
+Browsing for random binary data as image, audio sample, hexa.
+
+Few helpers to search for content.
+
+# Supported resources
+
+- GBA header
+- Graphics
    - Indexed 16 or 256 colors
    - 8x8 tiled memory layout
-- Palette in RGB 16 bits
-- Data compressed in LZ77
-- Hexa, pixel, audio sample browser for unidentified memory
-- Viewer for image, palette, tile set, sample, few music table, GBA header
+   - Palette in RGB 16 bits
+   - Tile set
+- Audio
+   - Sappy engine data
+- Compression
+   - LZ77
+   - Huffman
+   - Huffman over LZ77
 
 # Install
 
@@ -30,8 +43,10 @@ pip install git+https://github.com/vallsv/romsection
 # Launch
 
 ```
-python -m romsection
+romsection [-h] [--version] [filename]
 ```
+
+- `filename`: A `.gba` ROM file or a `.toml` containing ROM description
 
 # Useful resources
 

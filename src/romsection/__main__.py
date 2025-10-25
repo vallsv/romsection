@@ -7,14 +7,14 @@ from .gba_file import GBAFile
 
 def main():
     parser = argparse.ArgumentParser(
-        prog='RomSection',
+        prog='romsection',
         description='Dissect GameBoyAdvance ROMs',
     )
 
     parser.add_argument(
         "filename",
         nargs='?',
-        help="Filename of a .gba ROM file or .toml file"
+        help="A .gba ROM file or a .toml containing ROM description"
     )
     parser.add_argument(
         "--version",

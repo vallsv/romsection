@@ -1,5 +1,6 @@
 from PyQt5 import Qt
 from ..model import DataType, DataTypeGroup
+from ..context import Context
 
 
 class InfoDialog(Qt.QDialog):
@@ -50,7 +51,7 @@ class InfoDialog(Qt.QDialog):
         layout.addLayout(self._content)
         layout.addLayout(buttonLayout)
 
-    def setContext(self, context):
+    def setContext(self, context: Context):
         rom = context.rom()
         if rom is None:
             return

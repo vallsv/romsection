@@ -32,7 +32,7 @@ from collections.abc import Callable
 def _read_u8(f):
     v = f.read(1)
     if len(v) == 0:
-        raise ValueError("Not a valid GBA LZ77 stream")
+        raise ValueError("Not a valid GBA huffman stream")
     return v[0]
 
 
@@ -95,14 +95,13 @@ def _read_tokens(tree_data: bytes) -> dict[bytes, int]:
     stack = [(b"", 0, False)]
     tokens: dict[bytes, int] = {}
 
-    nb_max = 256 * 2
-
+    nb_max = 256 * 4
     for key, index, is_data in stack:
         nb_max -= 1
         if nb_max < 0:
-            raise ValueError("Not a valid GBA huffman stream")
+            raise ValueError("Not a valid GBA huffman stream: Loop detected")
         if index >= len(tree_data):
-            raise ValueError("Not a valid GBA huffman stream")
+            break
         d = tree_data[index]
         if is_data:
             tokens[key] = d
@@ -113,13 +112,12 @@ def _read_tokens(tree_data: bytes) -> dict[bytes, int]:
             next_index = index + (index & 1) + 1 + offset * 2
             stack.append((key + b"0", next_index, l_is_data))
             stack.append((key + b"1", next_index + 1, r_is_data))
-
     return tokens
 
 
-def _read_value(bit_stream, tokens: dict[bytes, int]) -> int:
+def _read_value(bit_stream, tokens: dict[bytes, int], max_key_size: int) -> int:
     key = b""
-    for _ in range(8):
+    for _ in range(max_key_size):
         bit = bit_stream.read_bit()
         key += b"%d" % bit
         d = tokens.get(key)
@@ -140,13 +138,14 @@ def decompress_4bits(input_stream: io.RawIOBase) -> bytes:
         raise ValueError("Not a valid GBA huffman stream")
 
     tokens = _read_tokens(tree_data)
+    max_key_size = max((len(k) for k in tokens.keys()))
 
     result = numpy.empty(decompressed_size, dtype=numpy.uint8)
     bit_stream = _BitIO(input_stream)
     size = 0
     while size < decompressed_size:
-        lo = _read_value(bit_stream, tokens)
-        hi = _read_value(bit_stream, tokens)
+        lo = _read_value(bit_stream, tokens, max_key_size)
+        hi = _read_value(bit_stream, tokens, max_key_size)
         result[size] = (hi << 4) + lo
         size += 1
 
@@ -165,12 +164,13 @@ def decompress_8bits(input_stream: io.RawIOBase) -> bytes:
 
     # Read the tree
     tokens = _read_tokens(tree_data)
+    max_key_size = max((len(k) for k in tokens.keys()))
 
     result = numpy.empty(decompressed_size, dtype=numpy.uint8)
     bit_stream = _BitIO(input_stream)
     size = 0
     while size < decompressed_size:
-        v = _read_value(bit_stream, tokens)
+        v = _read_value(bit_stream, tokens, max_key_size)
         result[size] = v
         size += 1
 
@@ -212,14 +212,15 @@ def dryrun(
         raise ValueError("Not a valid GBA huffman stream")
 
     tokens = _read_tokens(tree_data)
+    max_key_size = max((len(k) for k in tokens.keys()))
 
     bit_stream = _BitIO(input_stream)
     size = 0
 
     if data_depth == 4:
         while size < decompressed_length:
-            _read_value(bit_stream, tokens)
-            _read_value(bit_stream, tokens)
+            _read_value(bit_stream, tokens, max_key_size)
+            _read_value(bit_stream, tokens, max_key_size)
             size += 1
             if must_stop is not None and must_stop():
                 raise StopIteration
@@ -228,7 +229,7 @@ def dryrun(
 
     elif data_depth == 8:
         while size < decompressed_length:
-            _read_value(bit_stream, tokens)
+            _read_value(bit_stream, tokens, max_key_size)
             size += 1
             if must_stop is not None and must_stop():
                 raise StopIteration

@@ -1,7 +1,7 @@
 import struct
 from PyQt5 import Qt
 
-from .. import sappy_utils
+from ..parsers import sappy_utils
 
 
 class SappyInstrumentBank(Qt.QWidget):

@@ -16,7 +16,7 @@ class CreateUncoveredMemory(Behavior):
         rom = context.rom()
         memoryMapList = context.memoryMapList()
         try:
-            with exceptionAsMessageBox():
+            with exceptionAsMessageBox(context.mainWidget()):
 
                 offsets = list(rom.offsets)
                 # offsets = sorted(offsets, keys=lambda v: v.byte_offset)
@@ -51,13 +51,13 @@ class CreateUncoveredMemory(Behavior):
 
         if found:
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Result",
                 f"{found} memory maps were created"
             )
         else:
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Result",
                 "Nothing was modified"
             )
@@ -74,11 +74,11 @@ class ReplaceUnknownByPadding(Behavior):
         rom = context.rom()
         memoryMapList = context.memoryMapList()
         try:
-            with exceptionAsMessageBox():
+            with exceptionAsMessageBox(context.mainWidget()):
                 for mem in memoryMapList:
                     if mem.data_type != DataType.UNKNOWN:
                         continue
-                    if mem.byte_codec != ByteCodec.RAW:
+                    if mem.byte_codec not in (None, ByteCodec.RAW):
                         continue
                     if mem.byte_length > 3:
                         continue
@@ -96,13 +96,13 @@ class ReplaceUnknownByPadding(Behavior):
 
         if found:
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Result",
                 f"{found} memory maps were fixed"
             )
         else:
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Result",
                 "Nothing was modified"
             )
@@ -119,7 +119,7 @@ class RemoveUnknown(Behavior):
         rom = context.rom()
         memoryMapList = context.memoryMapList()
         try:
-            with exceptionAsMessageBox():
+            with exceptionAsMessageBox(context.mainWidget()):
                 for mem in reversed(memoryMapList):
                     if mem.byte_codec != ByteCodec.RAW:
                         continue
@@ -132,13 +132,13 @@ class RemoveUnknown(Behavior):
 
         if found:
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Result",
                 f"{found} memory maps were removed"
             )
         else:
             Qt.QMessageBox.information(
-                context,
+                context.mainWidget(),
                 "Result",
                 "Nothing was modified"
             )

@@ -4,6 +4,9 @@ from ..gba_file import ImagePixelOrder
 
 
 class ImagePixelOrderList(Qt.QListWidget):
+
+    valueChanged = Qt.pyqtSignal(object)
+
     def __init__(self, parent: Qt.QWidget | None = None):
         Qt.QListWidget.__init__(self, parent)
         self.setUniformItemSizes(True)
@@ -24,24 +27,29 @@ class ImagePixelOrderList(Qt.QListWidget):
         rect = self.visualItemRect(item)
         self.setMaximumHeight(rect.height() * self.count() + 4)
 
-    def selectedImagePixelOrder(self) -> ImagePixelOrder | None:
+        self.itemSelectionChanged.connect(self._onItemSelectionChanged)
+
+    def _onItemSelectionChanged(self):
+        self.valueChanged.emit(self.selectedValue())
+
+    def selectedValue(self) -> ImagePixelOrder | None:
         items = self.selectedItems()
         if len(items) != 1:
             return None
-        pixelOrder = items[0].data(Qt.Qt.UserRole)
-        return pixelOrder
+        value = items[0].data(Qt.Qt.UserRole)
+        return value
 
-    def _findItemFromPixelOrder(self, pixelOrder: ImagePixelOrder | None) -> Qt.QListWidgetItem | None:
-        if pixelOrder is None:
+    def _findItemFromValue(self, value: ImagePixelOrder | None) -> Qt.QListWidgetItem | None:
+        if value is None:
             return None
         for i in range(self.count()):
             item = self.item(i)
-            if item.data(Qt.Qt.UserRole) == pixelOrder:
+            if item.data(Qt.Qt.UserRole) == value:
                 return item
         return None
 
-    def selectImagePixelOrder(self, pixelOrder: ImagePixelOrder | None):
-        item = self._findItemFromPixelOrder(pixelOrder)
+    def selectValue(self, value: ImagePixelOrder | None):
+        item = self._findItemFromValue(value)
         if item is not None:
             i = self.row(item)
             self.setCurrentRow(i)

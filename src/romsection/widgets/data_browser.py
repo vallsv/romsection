@@ -5,7 +5,11 @@ from PyQt5 import Qt
 
 from ..qt_utils import blockSignals
 from ..gba_file import GBAFile
+from ..behaviors.common import BehaviorAtRomOffset
 from ..behaviors import sappy_content
+from ..behaviors import lz77_content
+from ..behaviors import rl_content
+from ..behaviors import huffman_content
 from ..format_utils import format_address as f_address
 from ..model import MemoryMap, ByteCodec, DataType
 from .sample_browser_widget import SampleBrowserWidget
@@ -16,6 +20,8 @@ from .image_pixel_order_combo import ImagePixelOrderCombo
 from .image_color_mode_combo import ImageColorModeCombo
 from .combo_box import ComboBox
 from .hexa_view import HexaView
+from ..context import Context
+from ..behaviors.behavior import Behavior
 
 
 class PixelTools:
@@ -137,8 +143,8 @@ class DataBrowser(Qt.QWidget):
     def __init__(self, parent: Qt.QWidget | None = None):
         Qt.QWidget.__init__(self, parent=parent)
         self.setSizePolicy(Qt.QSizePolicy.Expanding, Qt.QSizePolicy.Expanding)
-        context = parent
 
+        self.__context: Context | None = None
         self.__address: int = 0
         self.__rom: GBAFile | None = None
         self.__mem: MemoryMap | None = None
@@ -161,7 +167,24 @@ class DataBrowser(Qt.QWidget):
         self.__hexa.customContextMenuRequested.connect(self._showHexaContextMenu)
 
         self.__splitSappySample = sappy_content.SplitSappySample()
-        self.__splitSappySample.setContext(context)
+        self.__splitSappySamplePlusOne = sappy_content.SplitSappySamplePlusOne()
+        self.__splitLZ77Content = lz77_content.SplitLZ77Content()
+        self.__splitHuffmanContent = huffman_content.SplitHuffmanContent()
+        self.__splitRlContent = rl_content.SplitRlContent()
+        self.__searchSimilarLZ77Content = lz77_content.SearchSimilarLZ77Content()
+        self.__searchSimilarHuffmanContent = huffman_content.SearchSimilarHuffmanContent()
+        self.__searchSimilarRlContent = rl_content.SearchSimilarRlContent()
+
+        self.__behaviors: list[Behavior] = [
+            self.__splitSappySample,
+            self.__splitSappySamplePlusOne,
+            self.__splitLZ77Content,
+            self.__splitHuffmanContent,
+            self.__splitRlContent,
+            self.__searchSimilarLZ77Content,
+            self.__searchSimilarHuffmanContent,
+            self.__searchSimilarRlContent,
+        ]
 
         action = Qt.QAction(self)
         action.setIcon(Qt.QIcon("icons:hexa.png"))
@@ -222,6 +245,11 @@ class DataBrowser(Qt.QWidget):
 
         self.__pixel.selectionChanged.connect(self.__onSelectionChanged)
         self._updateSelection(self.selection())
+
+    def setContext(self, context: Context | None):
+        self.__context = context
+        for b in self.__behaviors:
+            b.setContext(context)
 
     def __onSelectionChanged(self, selection: tuple[int, int] | None):
         # Assume each widget have the same address origin
@@ -327,6 +355,7 @@ class DataBrowser(Qt.QWidget):
         self.__pixel.setMemory(memory)
         self.__wave.setMemory(memory)
         self.__hexa.setMemory(memory, address=address)
+        self.setPosition(0)
 
     def address(self) -> int:
         return self.__address
@@ -346,7 +375,7 @@ class DataBrowser(Qt.QWidget):
         if rom is None:
             return
         data = rom.extract_data(mem)
-        memory = io.BytesIO(data.tobytes())
+        memory = io.BytesIO(data)
         if mem.byte_codec in (None, ByteCodec.RAW):
             address = mem.byte_offset
             self.__mem = mem
@@ -414,8 +443,7 @@ class DataBrowser(Qt.QWidget):
         else:
             nextMem = None
 
-        context = self.parent()
-        memoryMapList = context.memoryMapList()
+        memoryMapList = self.__context.memoryMapList()
         index = memoryMapList.objectIndex(mem).row()
         memoryMapList.removeObject(mem)
         if prevMem is not None:
@@ -448,12 +476,59 @@ class DataBrowser(Qt.QWidget):
         split.triggered.connect(self._splitMemoryMap)
         menu.addAction(split)
 
-        split = Qt.QAction(menu)
-        split.setText("Split memory map as sappy sample")
-        split.setIcon(Qt.QIcon("icons:sample.png"))
-        self.__splitSappySample.setOffset(offset)
-        split.triggered.connect(self.__splitSappySample.run)
-        menu.addAction(split)
+        menu.addSeparator()
+
+        offsetBehaviors: list[BehaviorAtRomOffset] = [
+            self.__splitSappySample,
+            self.__splitSappySamplePlusOne,
+            self.__splitLZ77Content,
+            self.__splitHuffmanContent,
+            self.__splitRlContent,
+            self.__searchSimilarLZ77Content,
+            self.__searchSimilarHuffmanContent,
+            self.__searchSimilarRlContent,
+        ]
+
+        for b in offsetBehaviors:
+            b.setOffset(offset)
+
+        maxSize = max((s.headerSize() for s in offsetBehaviors))
+
+        rom = self.__rom
+        if rom is None:
+            return
+
+        memHeader = MemoryMap(
+            byte_offset=offset,
+            byte_length=maxSize,
+            byte_codec=ByteCodec.RAW,
+        )
+        header = rom.extract_raw(memHeader)
+
+        def addActionToMenu(offsetBehavior: BehaviorAtRomOffset):
+            action = offsetBehavior.createAction(menu)
+            size = offsetBehavior.headerSize()
+            if size > len(header):
+                valid = False
+            else:
+                valid = offsetBehavior.isValidHeader(header[:size])
+            action.setEnabled(valid)
+            menu.addAction(action)
+
+        addActionToMenu(self.__splitLZ77Content)
+        addActionToMenu(self.__splitHuffmanContent)
+        addActionToMenu(self.__splitRlContent)
+
+        menu.addSeparator()
+
+        addActionToMenu(self.__splitSappySamplePlusOne)
+        addActionToMenu(self.__splitSappySample)
+
+        menu.addSeparator()
+
+        addActionToMenu(self.__searchSimilarLZ77Content)
+        addActionToMenu(self.__searchSimilarHuffmanContent)
+        addActionToMenu(self.__searchSimilarRlContent)
 
         menu.exec(globalPos)
 
@@ -479,8 +554,7 @@ class DataBrowser(Qt.QWidget):
             data_type=DataType.UNKNOWN,
         )
 
-        context = self.parent()
-        memoryMapList = context.memoryMapList()
+        memoryMapList = self.__context.memoryMapList()
         index = memoryMapList.objectIndex(mem).row()
         memoryMapList.removeObject(mem)
         if prevMem.byte_length:

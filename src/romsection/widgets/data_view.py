@@ -5,14 +5,16 @@ import typing
 from PyQt5 import Qt
 
 from ..model import MemoryMap, DataType
-from .. import sappy_utils
-from .. import gba_utils
+from ..parsers import sappy_utils
+from ..parsers import gba_utils
 from ..gba_file import GBAFile
 from .hexa_view import HexaView
 from .sappy_instrument_bank import SappyInstrumentBank
 from .hexa_array_view import HexaArrayView
 from .hexa_struct_view import HexaStructView
 from ..behaviors import sappy_content
+from ..context import Context
+from ..behaviors.behavior import Behavior
 
 
 class Description(typing.NamedTuple):
@@ -49,7 +51,7 @@ DESCRIPTION = {
     ),
     DataType.MUSIC_KEY_SPLIT_TABLE_SAPPY: Description(
         is_array=True,
-        item_struct=sappy_utils.SongTableItem,
+        item_struct=None,
         struct=None,
         item_size=1,
     ),
@@ -73,8 +75,7 @@ class DataView(Qt.QWidget):
         Qt.QWidget.__init__(self, parent=parent)
         self.setSizePolicy(Qt.QSizePolicy.Expanding, Qt.QSizePolicy.Expanding)
 
-        context = parent
-
+        self.__context: Context | None = None
         self.__memoryMap: MemoryMap | None = None
         self.__rom: GBAFile | None = None
 
@@ -88,13 +89,20 @@ class DataView(Qt.QWidget):
         self.__statusbar = Qt.QStatusBar(self)
 
         self.__searchSappySongHeaders = sappy_content.SearchSappySongHeadersFromSongTable()
-        self.__searchSappySongHeaders.setContext(context)
         self.__searchSappyTrackers = sappy_content.SearchSappyTracksFromSongTable()
-        self.__searchSappyTrackers.setContext(context)
         self.__searchSappyKeySplitTable = sappy_content.SearchSappyKeySplitTableFromInstrumentTable()
-        self.__searchSappyKeySplitTable.setContext(context)
         self.__searchSappySample = sappy_content.SearchSappySampleFromInstrumentTable()
-        self.__searchSappySample.setContext(context)
+        self.__searchInstrumentAddress = sappy_content.SearchInstrumentAddress()
+        self.__searchSongHeaderAddress = sappy_content.SearchSongHeaderAddress()
+
+        self.__behaviors: list[Behavior] = [
+            self.__searchSappySongHeaders,
+            self.__searchSappyTrackers,
+            self.__searchSappyKeySplitTable,
+            self.__searchSappySample,
+            self.__searchInstrumentAddress,
+            self.__searchSongHeaderAddress,
+        ]
 
         spacer = Qt.QWidget(self.__toolbar)
         spacer.setSizePolicy(Qt.QSizePolicy.Expanding, Qt.QSizePolicy.Expanding)
@@ -124,6 +132,15 @@ class DataView(Qt.QWidget):
         action.setIcon(Qt.QIcon("icons:music.png"))
         toolMenu.addAction(action)
 
+        toolMenu.addSection("From sappy song header")
+
+        action = Qt.QAction(self)
+        action.triggered.connect(self.__searchSongHeaderAddress.run)
+        action.setText("Search selected song header")
+        action.setToolTip("Search the selected song header")
+        action.setIcon(Qt.QIcon("icons:music.png"))
+        toolMenu.addAction(action)
+
         toolMenu.addSection("From sappy instrument table")
 
         action = Qt.QAction(self)
@@ -138,6 +155,13 @@ class DataView(Qt.QWidget):
         action.setText("Extract samples")
         action.setToolTip("Extract referenced samples from instrument table")
         action.setIcon(Qt.QIcon("icons:sample.png"))
+        toolMenu.addAction(action)
+
+        action = Qt.QAction(self)
+        action.triggered.connect(self.__searchInstrumentAddress.run)
+        action.setText("Search selected instrument address")
+        action.setToolTip("Search the selected instrument address")
+        action.setIcon(Qt.QIcon("icons:instrument.png"))
         toolMenu.addAction(action)
 
         self.__table = HexaArrayView(self)
@@ -159,6 +183,9 @@ class DataView(Qt.QWidget):
             return
         address = self.__table.selectedItemAddress()
         dataType = self.__memoryMap.data_type if self.__memoryMap else None
+        if dataType == DataType.MUSIC_INSTRUMENT_SAPPY:
+            self.__searchInstrumentAddress.setAddress(address)
+
         desc = DESCRIPTION.get(dataType)
         if desc is None:
             self.__hexaStruct.setStruct(None)
@@ -175,6 +202,11 @@ class DataView(Qt.QWidget):
     def setMemoryMap(self, memoryMap: MemoryMap | None):
         self.__memoryMap = memoryMap
         self._updateData()
+
+    def setContext(self, context: Context | None):
+        self.__context = context
+        for b in self.__behaviors:
+            b.setContext(context)
 
     def rom(self) -> GBAFile | None:
         return self.__rom
@@ -198,8 +230,7 @@ class DataView(Qt.QWidget):
             self.__table.setMemory(io.BytesIO(b""))
             return
 
-        array = rom.extract_data(mem)
-        data = array.tobytes()
+        data = rom.extract_data(mem)
 
         model = self.__table.model()
         dataType = self.__memoryMap.data_type if self.__memoryMap else None
@@ -223,6 +254,8 @@ class DataView(Qt.QWidget):
             self.__hexaStruct.setVisible(True)
             self.__hexaStruct.setStruct(None)
         else:
+            if dataType == DataType.MUSIC_SONG_HEADER_SAPPY:
+                self.__searchSongHeaderAddress.setAddress(mem.byte_offset)
             dataStruct = desc.struct.parse_struct(data)
             self.__table.setVisible(False)
             self.__hexaStruct.setVisible(True)

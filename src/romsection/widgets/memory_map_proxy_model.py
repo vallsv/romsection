@@ -7,6 +7,7 @@ import lru
 from PyQt5 import Qt
 
 from .object_list_model import ObjectListModel
+from .tooltip_factory import TooltipFactory
 from ..gba_file import MemoryMap, ByteCodec, DataType
 
 
@@ -87,24 +88,36 @@ class MemoryMapProxyModel(Qt.QSortFilterProxyModel):
         if column == self.ColumnMemory:
             mem = sourceIndex.data(ObjectListModel.ObjectRole)
             if role in (Qt.Qt.DisplayRole, Qt.Qt.EditRole):
-                length = mem.byte_payload or mem.byte_length or 0
-                return format_size(length)
+                uncompressed = mem.byte_payload or mem.byte_length or 0
+                return format_size(uncompressed)
             if role == Qt.Qt.ToolTipRole:
-                length = mem.byte_length
+                compressed = mem.byte_length
                 byteCodec = mem.byte_codec
+                tooltip = TooltipFactory()
+
                 if byteCodec is None or byteCodec == ByteCodec.RAW:
-                    return f"Size: {length} B"
+                    tooltip.addRow("Size", f"{compressed} B")
                 else:
-                    dataLength = mem.byte_payload or mem.byte_length or 0
-                    return f"Size: {dataLength} B\nCodec: {byteCodec.name}\nCompressed: {length} B"
+                    uncompressed = mem.byte_payload or mem.byte_length or 0
+                    compression = f"×{uncompressed / compressed:0.2f}" if compressed != 0 else "NA"
+                    tooltip.addRow("Size", f"{uncompressed} B")
+                    tooltip.addRow("Codec", f"{byteCodec.name}")
+                    tooltip.addRow("Compressed", f"{compressed} B")
+                    tooltip.addRow("Ratio", f"{compression}")
+                return tooltip.html()
             if role == Qt.Qt.DecorationRole:
                 byteCodec = mem.byte_codec
                 if byteCodec is None or byteCodec == ByteCodec.RAW:
                     return Qt.QIcon("icons:empty.png")
+                if byteCodec == ByteCodec.RL:
+                    return Qt.QIcon("icons:rl.png")
                 if byteCodec == ByteCodec.LZ77:
                     return Qt.QIcon("icons:lz77.png")
-                else:
-                    return Qt.QIcon("icons:lz77.png")
+                if byteCodec == ByteCodec.HUFFMAN:
+                    return Qt.QIcon("icons:huffman.png")
+                if byteCodec == ByteCodec.HUFFMAN_OVER_LZ77:
+                    return Qt.QIcon("icons:huffman_lz77.png")
+                return Qt.QIcon("icons:lz77.png")
 
         return Qt.QSortFilterProxyModel.data(self, index, role)
 

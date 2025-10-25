@@ -2,10 +2,15 @@ import typing
 import queue
 import io
 import os
+import enum
+from collections.abc import Callable
+
 from PyQt5 import Qt
 
 from ..gba_file import GBAFile
-from ..model import MemoryMap
+from ..model import MemoryMap, ByteCodec, DataType
+from .behavior import Behavior
+from ._utils import splitMemoryMap
 
 
 class Signals(Qt.QObject):
@@ -22,6 +27,7 @@ class SearchRunnable(Qt.QRunnable):
         rom: GBAFile,
         memoryRange: tuple[int, int],
         queue: queue.Queue[MemoryMap],
+        checkStream: Callable[["SearchRunnable", int, io.IOBase], bool] | None = None
     ):
         Qt.QRunnable.__init__(self)
         self._signals = Signals()
@@ -34,6 +40,7 @@ class SearchRunnable(Qt.QRunnable):
         If True, if a data is found, do not search any more other content
         inside this block. Else, each offset is checked individually.
         """
+        self.__checkStream = checkStream
 
     @property
     def signals(self) -> Signals:
@@ -82,7 +89,10 @@ class SearchRunnable(Qt.QRunnable):
                     raise StopIteration
 
                 try:
-                    found = self._checkStream(romOffset + offset, stream)
+                    if self.__checkStream is not None:
+                        found = self.__checkStream(self, romOffset + offset, stream)
+                    else:
+                        found = self._checkStream(romOffset + offset, stream)
                 except ValueError:
                     found = False
                 except RuntimeError:
@@ -176,3 +186,126 @@ class WaitForSearchDialog(Qt.QDialog):
 
     def _updateProgress(self):
         self._progressBar.setValue(self._bytesChecked)
+
+
+class InsertionMode(enum.Enum):
+    INSERT = enum.auto()
+    """Remove the initial memory map and create new onces"""
+
+    SPLIT = enum.auto()
+    """Split recursivelly the initial map"""
+
+class SearchContentBehavior(Behavior):
+    """
+    Search for some content.
+    """
+    def __init__(self) -> None:
+        Behavior.__init__(self)
+        self.__minDataLength = 16
+        self.__maxDataLength = 1024 * 24
+        self.__insertionMode: InsertionMode = InsertionMode.INSERT
+
+    def setDataLengthRange(self, minLength: int, maxLength: int):
+        self.__minDataLength = minLength
+        self.__maxDataLength = maxLength
+
+    def minDataLength(self) -> int:
+        return self.__minDataLength
+
+    def maxDataLength(self) -> int:
+        return self.__maxDataLength
+
+    def setInsertionMode(self, mode: InsertionMode):
+        self.__insertionMode = mode
+
+    def _checkStream(self, runner: SearchRunnable, romOffset: int, stream: io.IOBase) -> bool:
+        """
+        Check the stream at the place it is.
+
+        This is executed inside another thread.
+        """
+        raise NotImplementedError
+
+    def run(self) -> None:
+        context = self.context()
+        rom = context.rom()
+
+        mem = context.currentMemoryMap()
+        if mem is None:
+            return
+
+        memoryMapQueue: queue.Queue[MemoryMap] = queue.Queue()
+
+        Qt.QGuiApplication.setOverrideCursor(Qt.QCursor(Qt.Qt.WaitCursor))
+        pool = Qt.QThreadPool.globalInstance()
+
+        nbFound = 0
+        memoryMapList = context.memoryMapList()
+        notAdded: list[tuple[MemoryMap, str]] = []
+
+        def flushQueue():
+            nonlocal nbFound
+            try:
+                while newMem := memoryMapQueue.get(block=False):
+                    if self.__insertionMode == InsertionMode.INSERT:
+                        if nbFound == 0:
+                            # At the first found we remove the parent memory
+                            memoryMapList.removeObject(mem)
+                        nbFound += 1
+                        index = memoryMapList.indexAfterOffset(newMem.byte_offset)
+                        memoryMapList.insertObject(index, newMem)
+                    elif self.__insertionMode == InsertionMode.SPLIT:
+                        nbFound += 1
+                        mem = rom.memory_map_containing_offset(newMem.byte_offset)
+                        if mem is None:
+                            notAdded.add((newMem, "There is no parent memory"))
+                            continue
+                        if mem.byte_codec not in (None, ByteCodec.RAW):
+                            notAdded.add((newMem, "Parent memory is not a raw data"))
+                            continue
+                        if mem.data_type != DataType.UNKNOWN:
+                            notAdded.add((newMem, "Parent memory have a data type"))
+                            continue
+                        try:
+                            splitMemoryMap(memoryMapList, mem, newMem)
+                        except RuntimeError as e:
+                            notAdded.add((newMem, e.args[0]))
+                    else:
+                        raise RuntimeError(f"Unsupported {self.__insertionMode}")
+            except queue.Empty:
+                pass
+
+        runnable = SearchRunnable(
+            rom=rom,
+            memoryRange=(mem.byte_offset, mem.byte_end),
+            queue=memoryMapQueue,
+            checkStream=self._checkStream,
+        )
+        if self.__insertionMode == InsertionMode.SPLIT:
+            # No need to check intermediate values, it will not be inserted
+            # in the end because another memorymap is already there
+            runnable._skipValidBlocks = True
+
+        dialog = WaitForSearchDialog(context.mainWidget())
+        dialog.registerRunnable(runnable)
+        pool.start(runnable)
+
+        timer = Qt.QTimer(context.mainWidget())
+        timer.timeout.connect(flushQueue)
+        timer.start(200)
+
+        dialog.exec()
+
+        timer.stop()
+        flushQueue()
+        Qt.QGuiApplication.restoreOverrideCursor()
+
+        msg = f"{nbFound} potential location was found."
+        if len(notAdded) != 0:
+            msg += f"{msg} {len(notAdded)} was not inserted for various reasons."
+
+        Qt.QMessageBox.information(
+            context.mainWidget(),
+            "Seatch result",
+            msg,
+        )
