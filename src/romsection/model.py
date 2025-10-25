@@ -162,7 +162,7 @@ class MemoryMap:
     None means it is not yet precisly identified, for example if compressed.
     """
 
-    byte_codec: ByteCodec | None = None
+    byte_codec: ByteCodec | None = ByteCodec.RAW
     """
     Codec use to store the data.
     """
@@ -226,7 +226,7 @@ class MemoryMap:
         description:  dict[str, typing.Any] = {
             "byte_offset": self.byte_offset,
         }
-        if self.byte_codec is not None:
+        if self.byte_codec is not None and self.byte_codec is not ByteCodec.RAW:
             description["byte_codec"] = self.byte_codec.name
         if self.byte_length is not None:
             description["byte_length"] = self.byte_length
