@@ -42,3 +42,6 @@ class Context(Qt.QObject):
 
     def currentMemoryMap(self) -> MemoryMap | None:
         return self._currentMemoryMap
+
+    def updateMemoryMap(self, previous: MemoryMap, next: MemoryMap):
+        self._memoryMapList.replaceObject(previous, next)

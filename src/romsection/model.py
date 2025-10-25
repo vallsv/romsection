@@ -150,16 +150,14 @@ class SampleCodec(enum.Enum):
     SAMPLE_UINT8 = enum.auto()
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class MemoryMap:
     byte_offset: int
     """Offset of the memory related to the ROM."""
 
-    byte_length: int | None = None
+    byte_length: int
     """
-    Size of this memory map in  the ROM.
-
-    None means it is not yet precisly identified, for example if compressed.
+    Size of this memory map in the ROM.
     """
 
     byte_codec: ByteCodec | None = ByteCodec.RAW
@@ -221,6 +219,9 @@ class MemoryMap:
     @property
     def byte_end(self) -> int:
         return self.byte_offset + (self.byte_length or 0)
+
+    def replace(self, *args, **kwargs):
+        return dataclasses.replace(self, *args, **kwargs)
 
     def to_dict(self) -> dict[str, typing.Any]:
         description:  dict[str, typing.Any] = {

@@ -690,11 +690,15 @@ class Extractor(Qt.QWidget):
             if mem.image_color_mode is None and mem.image_shape is None and mem.image_pixel_order is None:
                 previous = self._lastBySize.get(mem.byte_payload)
                 if previous is not None:
-                    mem.image_color_mode = previous.image_color_mode
-                    mem.image_shape = previous.image_shape
-                    mem.image_pixel_order = previous.image_pixel_order
-
-            self._lastBySize[mem.byte_payload] = mem
+                    newMem = mem.replace(
+                        image_color_mode=previous.image_color_mode,
+                        image_shape=previous.image_shape,
+                        image_pixel_order=previous.image_pixel_order,
+                    )
+                    self._context.updateMemoryMap(mem, newMem)
+                    self._lastBySize[mem.byte_payload] = newMem
+            else:
+                self._lastBySize[mem.byte_payload] = mem
 
         with blockSignals(self._byteCodecList):
             self._byteCodecList.selectValue(mem.byte_codec)
@@ -736,11 +740,13 @@ class Extractor(Qt.QWidget):
         if byteCodec is None:
             return
 
-        memoryMapList = self._context.memoryMapList()
+        context = self._context
         for mem in self._memView.selectedMemoryMaps():
-            mem.byte_codec = byteCodec
-            mem.byte_payload = None
-            memoryMapList.updatedObject(mem)
+            newMem = mem.replace(
+                byte_codec=byteCodec,
+                byte_payload=None,
+            )
+            context.updateMemoryMap(mem, newMem)
 
         self._updateShapes()
         self._updateImage()
@@ -750,10 +756,10 @@ class Extractor(Qt.QWidget):
         if dataType is None:
             return
 
-        memoryMapList = self._context.memoryMapList()
+        context = self._context
         for mem in self._memView.selectedMemoryMaps():
-            mem.data_type = dataType
-            memoryMapList.updatedObject(mem)
+            newMem = mem.replace(data_type=dataType)
+            context.updateMemoryMap(mem, newMem)
 
         self._updateWidgets()
         self._updateShapes()
@@ -764,10 +770,12 @@ class Extractor(Qt.QWidget):
         if paletteSize is None:
             return
 
-        memoryMapList = self._context.memoryMapList()
+        context = self._context
         for mem in self._memView.selectedMemoryMaps():
-            mem.palette_size = paletteSize
-            memoryMapList.updatedObject(mem)
+            newMem = mem.replace(
+                palette_size=paletteSize,
+            )
+            context.updateMemoryMap(mem, newMem)
 
         self._updateWidgets()
         self._updateShapes()
@@ -828,18 +836,22 @@ class Extractor(Qt.QWidget):
 
     def _onImageColorModeSelected(self):
         colorMode = self._colorModeList.selectedValue()
+
+        context = self._context
         for mem in self._memView.selectedMemoryMaps():
             if mem.image_color_mode == colorMode:
                 continue
 
             previousImageColorMode = mem.image_color_mode
-            mem.image_color_mode = colorMode
+            newMem = mem.replace(image_color_mode=colorMode)
 
             if mem.image_shape is not None:
                 pnb = 1 if previousImageColorMode in [None, ImageColorMode.INDEXED_8BIT] else 2
                 nb = 1 if colorMode in [None, ImageColorMode.INDEXED_8BIT] else 2
                 if pnb != nb:
-                    mem.image_shape = mem.image_shape[0], int(mem.image_shape[1] * nb / pnb)
+                    shape = mem.image_shape[0], int(mem.image_shape[1] * nb / pnb)
+                    newMem = newMem.replace(image_shape=shape)
+            context.updateMemoryMap(mem, newMem)
 
         mem = self._memView.selectedMemoryMap()
         if mem is None:
@@ -849,30 +861,80 @@ class Extractor(Qt.QWidget):
 
     def _onShapeSelected(self):
         shape = self._shapeList.selectedShape()
+
+        context = self._context
         for mem in self._memView.selectedMemoryMaps():
-            mem.image_shape = shape
+            newMem = mem.replace(
+                image_shape=shape,
+            )
+            context.updateMemoryMap(mem, newMem)
+
         self._updateImage()
 
     def _onImagePixelOrderSelected(self):
         pixelOrder = self._pixelOrderList.selectedValue()
+
+        context = self._context
         for mem in self._memView.selectedMemoryMaps():
-            mem.image_pixel_order = pixelOrder
+            newMem = mem.replace(
+                image_pixel_order=pixelOrder,
+            )
+            context.updateMemoryMap(mem, newMem)
+
         self._updateImage()
 
     def _onPaletteSelected(self):
-        palette_mem = self._paletteCombo.selectedValue()
+        paletteMem = self._paletteCombo.selectedValue()
+        if paletteMem is not None:
+            paletteOffset = paletteMem.byte_offset
+        else:
+            paletteOffset = None
+
+        context = self._context
         for mem in self._memView.selectedMemoryMaps():
-            if palette_mem is None:
-                mem.image_palette_offset = None
-            else:
-                mem.image_palette_offset = palette_mem.byte_offset
+            newMem = mem.replace(
+                image_palette_offset=paletteOffset,
+            )
+            context.updateMemoryMap(mem, newMem)
+
         self._updateImage()
 
     def _onSampleCodecSelected(self):
         sampleCodec = self._sampleCodecList.selectedValue()
+
+        context = self._context
         for mem in self._memView.selectedMemoryMaps():
-            mem.sample_codec = sampleCodec
+            newMem = mem.replace(
+                sample_codec=sampleCodec,
+            )
+            context.updateMemoryMap(mem, newMem)
+
         self._updateImage()
+
+    def _updatePayload(self, mem: MemoryMap) -> MemoryMap:
+        """
+        Synchronize memory map with cached information.
+
+        FIXME: Maybe the cached information should be handled in a side way
+               outside of the MemoryMap itself
+        """
+        if mem.byte_codec is None or mem.byte_codec == ByteCodec.RAW:
+            return mem
+        if mem.byte_payload is not None:
+            return mem
+        rom = self._context.rom()
+        try:
+            size, payload = rom.check_codec(mem.byte_offset, mem.byte_codec)
+        except Exception:
+            # FIXME: This have to be cached
+            return mem
+
+        newMem = mem.replace(
+            byte_payload=payload,
+            byte_length=size,
+        )
+        self._context.updateMemoryMap(mem, newMem)
+        return newMem
 
     def _updateImage(self):
         mem = self._memView.currentMemoryMap()
@@ -880,6 +942,7 @@ class Extractor(Qt.QWidget):
             self._view.setCurrentWidget(self._nothing)
             return
 
+        mem = self._updatePayload(mem)
         rom = self._context.rom()
         try:
             data_type_name = "" if mem.data_type is None else mem.data_type.name

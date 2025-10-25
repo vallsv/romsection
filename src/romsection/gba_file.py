@@ -161,8 +161,16 @@ class GBAFile:
             raise ValueError(f"Memory map 0x{mem.byte_offset:08X} contains an unknown byte codec {byte_codec}")
 
         offset_end = stream.tell()
-        mem.byte_length = offset_end - mem.byte_offset
-        mem.byte_payload = len(result)
+        if mem.byte_length != offset_end - mem.byte_offset:
+            # mem.byte_length = offset_end - mem.byte_offset
+            import traceback
+            traceback.print_stack()
+            print("WARNING: byte_length cache not updated")
+        if mem.byte_payload != len(result):
+            # mem.byte_payload = len(result)
+            import traceback
+            traceback.print_stack()
+            print("WARNING: byte_payload cache not updated")
         return result
 
     def palette_data(self, mem: MemoryMap) -> numpy.ndarray:
