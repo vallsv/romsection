@@ -235,7 +235,7 @@ class Extractor(Qt.QWidget):
         self._musicBrowser = MusicBrowser(self)
         self._sampleView = SampleView(self)
         self._dataView = DataView(self)
-        self._dataBrowser.setContext(context)
+        self._dataView.setContext(context)
         self._hexaView = HexaView(self)
 
         self._view = Qt.QStackedLayout()
