@@ -38,6 +38,8 @@ def getTomlOrRomFilenameFromDialog(extractor) -> str | None:
 def getRomFilenameFromDialog(extractor) -> str | None:
     """
     Return an existing filename of a ROM.
+
+    FIXME: Have to be reworked with `context`
     """
     dialog = Qt.QFileDialog(extractor)
     dialog.setWindowTitle("Load a ROM")
@@ -69,6 +71,8 @@ def getRomFilenameFromDialog(extractor) -> str | None:
 def getSaveTomlFilenameFromDialog(extractor) -> str | None:
     """
     Return a filename which will be used for TOML saving.
+
+    FIXME: Have to be reworked with `context`
     """
     dialog = Qt.QFileDialog(extractor)
     dialog.setWindowTitle("Save")
@@ -81,13 +85,16 @@ def getSaveTomlFilenameFromDialog(extractor) -> str | None:
     dialog.setFileMode(Qt.QFileDialog.AnyFile)
     dialog.setAcceptMode(Qt.QFileDialog.AcceptSave)
 
+    context = extractor.context()
+    rom = context.romOrNone()
+
     if extractor._dialogDirectory is not None and os.path.exists(extractor._dialogDirectory):
         dialog.setDirectory(extractor._dialogDirectory)
 
     if extractor._filename is not None:
         dialog.selectFile(f"{os.path.basename(extractor._filename)}.toml")
-    elif extractor._rom is not None:
-        dialog.selectFile(f"{os.path.basename(extractor._rom.filename)}.toml")
+    elif rom is not None:
+        dialog.selectFile(f"{os.path.basename(rom.filename)}.toml")
 
     result = dialog.exec_()
     if not result:
