@@ -1,3 +1,4 @@
+import contextlib
 from PyQt5 import Qt
 from .widgets.memory_map_list_model import MemoryMapListModel
 from .gba_file import GBAFile
@@ -14,10 +15,14 @@ class Context(Qt.QObject):
         self._memoryMapList = MemoryMapListModel(self)
         self._rom: GBAFile | None = None
         self._currentMemoryMap: MemoryMap | None = None
+        self._undoStack = Qt.QUndoStack(self)
 
     def mainWidget(self) -> Qt.QWidget:
         assert self._mainWidget is not None
         return self._mainWidget
+
+    def undoStack(self) -> Qt.QUndoStack:
+        return self._undoStack
 
     def memoryMapList(self) -> MemoryMapListModel:
         return self._memoryMapList
@@ -35,6 +40,7 @@ class Context(Qt.QObject):
             self._memoryMapList.setObjectList([])
         else:
             self._memoryMapList.setObjectList(rom.offsets)
+        self._undoStack.clear()
         self.romChanged.emit(rom)
 
     def _setCurrentMemoryMap(self, mem: MemoryMap | None):
@@ -42,3 +48,23 @@ class Context(Qt.QObject):
 
     def currentMemoryMap(self) -> MemoryMap | None:
         return self._currentMemoryMap
+
+    def updateMemoryMap(self, previous: MemoryMap, next: MemoryMap):
+        from .commands.update_memorymap import UpdateMemoryMapCommand
+        command = UpdateMemoryMapCommand()
+        command.setContext(self)
+        command.setCommand(previous, next)
+        self._undoStack.push(command)
+
+    def pushCommand(self, command: Qt.QUndoCommand):
+        command.setContext(self)
+        self._undoStack.push(command)
+
+    @contextlib.contextmanager
+    def macroCommands(self, text: str):
+        undoStack = self._undoStack
+        undoStack.beginMacro(text)
+        try:
+            yield
+        finally:
+            undoStack.endMacro()

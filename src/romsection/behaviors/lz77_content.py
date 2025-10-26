@@ -6,7 +6,7 @@ from ..model import MemoryMap, ByteCodec, DataType
 from . import search
 from .behavior import Behavior
 from ..parsers import lz77
-from ._utils import splitMemoryMap
+from ..commands.extract_memorymap import ExtractMemoryMapCommand
 from .. import qt_utils
 from .common import BehaviorAtRomOffset
 
@@ -46,7 +46,7 @@ class SplitLZ77Content(BehaviorAtRomOffset):
             byte_length=4,
             data_type=DataType.UNKNOWN,
         )
-        header = rom.extract_data(headerMem)
+        header = rom.extract_raw(headerMem)
 
         if header[0] != 0x10:
             Qt.QMessageBox.information(
@@ -56,18 +56,19 @@ class SplitLZ77Content(BehaviorAtRomOffset):
             )
             return
 
-        dataMem = MemoryMap(
-            byte_codec=ByteCodec.LZ77,
-            byte_offset=address,
-            data_type=DataType.UNKNOWN,
-        )
-
+        byte_codec = ByteCodec.LZ77
         with qt_utils.exceptionAsMessageBox(context.mainWidget()):
-            byte_payload = rom.byte_payload(dataMem)
-            dataMem.byte_payload = byte_payload
-
-            memoryMapList = context.memoryMapList()
-            splitMemoryMap(memoryMapList, mem, dataMem)
+            byte_length, byte_payload = rom.check_codec(address, byte_codec)
+            dataMem = MemoryMap(
+                byte_codec=byte_codec,
+                byte_offset=address,
+                byte_length=byte_length,
+                byte_payload=byte_payload,
+                data_type=DataType.UNKNOWN,
+            )
+            command = ExtractMemoryMapCommand()
+            command.setCommand(mem, dataMem)
+            context.pushCommand(command)
 
 
 class SearchLZ77Content(search.SearchContentBehavior):
@@ -135,7 +136,7 @@ class SearchSimilarLZ77Content(BehaviorAtRomOffset):
             byte_length=4,
             data_type=DataType.UNKNOWN,
         )
-        header = rom.extract_data(headerMem)
+        header = rom.extract_raw(headerMem)
 
         if header[0] != 0x10:
             Qt.QMessageBox.information(

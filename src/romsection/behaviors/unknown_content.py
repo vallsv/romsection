@@ -3,6 +3,9 @@ from ..gba_file import GBAFile
 from .behavior import Behavior
 from ..qt_utils import exceptionAsMessageBox
 from ..model import MemoryMap, ByteCodec, DataType
+from ..commands.remove_memorymap import RemoveMemoryMapCommand
+from ..commands.update_memorymap import UpdateMemoryMapCommand
+from ..commands.insert_memorymap import InsertMemoryMapCommand
 
 
 class CreateUncoveredMemory(Behavior):
@@ -16,8 +19,10 @@ class CreateUncoveredMemory(Behavior):
         rom = context.rom()
         memoryMapList = context.memoryMapList()
         try:
-            with exceptionAsMessageBox(context.mainWidget()):
-
+            with (
+                exceptionAsMessageBox(context.mainWidget()),
+                context.macroCommands("Create UNKNOWN memorymaps")
+            ):
                 offsets = list(rom.offsets)
                 # offsets = sorted(offsets, keys=lambda v: v.byte_offset)
                 mem_end = MemoryMap(
@@ -41,7 +46,9 @@ class CreateUncoveredMemory(Behavior):
                             byte_codec=ByteCodec.RAW,
                             data_type=DataType.UNKNOWN,
                         )
-                        memoryMapList.insertObject(index, mem)
+                        command = InsertMemoryMapCommand()
+                        command.setCommand(index, mem)
+                        context.pushCommand(command)
                         index += 1
                         found += 1
                     index += 1
@@ -74,7 +81,10 @@ class ReplaceUnknownByPadding(Behavior):
         rom = context.rom()
         memoryMapList = context.memoryMapList()
         try:
-            with exceptionAsMessageBox(context.mainWidget()):
+            with (
+                exceptionAsMessageBox(context.mainWidget()),
+                context.macroCommands("Replace UNKNOWN by PADDING")
+            ):
                 for mem in memoryMapList:
                     if mem.data_type != DataType.UNKNOWN:
                         continue
@@ -88,8 +98,11 @@ class ReplaceUnknownByPadding(Behavior):
                     # FIXME: We could chech adress alignement
                     #        but i feel like sometimes there is
                     #        surprisingly unaligned padding
-                    mem.data_type = DataType.PADDING
-                    memoryMapList.updatedObject(mem)
+                    newMem = mem.replace(data_type=DataType.PADDING)
+
+                    command = UpdateMemoryMapCommand()
+                    command.setCommand(mem, newMem)
+                    context.pushCommand(command)
                     found += 1
         finally:
             Qt.QGuiApplication.restoreOverrideCursor()
@@ -119,13 +132,19 @@ class RemoveUnknown(Behavior):
         rom = context.rom()
         memoryMapList = context.memoryMapList()
         try:
-            with exceptionAsMessageBox(context.mainWidget()):
+            with (
+                exceptionAsMessageBox(context.mainWidget()),
+                context.macroCommands("Remove all UNKNOWN memorymap")
+            ):
                 for mem in reversed(memoryMapList):
                     if mem.byte_codec != ByteCodec.RAW:
                         continue
                     if mem.data_type != DataType.UNKNOWN:
                         continue
-                    memoryMapList.removeObject(mem)
+
+                    command = RemoveMemoryMapCommand()
+                    command.setCommand(mem)
+                    context.pushCommand(command)
                     found += 1
         finally:
             Qt.QGuiApplication.restoreOverrideCursor()

@@ -10,7 +10,7 @@ from PyQt5 import Qt
 from ..gba_file import GBAFile
 from ..model import MemoryMap, ByteCodec, DataType
 from .behavior import Behavior
-from ._utils import splitMemoryMap
+from ..commands.extract_memorymap import ExtractMemoryMapCommand
 
 
 class Signals(Qt.QObject):
@@ -267,7 +267,9 @@ class SearchContentBehavior(Behavior):
                             notAdded.add((newMem, "Parent memory have a data type"))
                             continue
                         try:
-                            splitMemoryMap(memoryMapList, mem, newMem)
+                            command = ExtractMemoryMapCommand()
+                            command.setCommand(mem, newMem)
+                            context.pushCommand(command)
                         except RuntimeError as e:
                             notAdded.add((newMem, e.args[0]))
                     else:
@@ -290,14 +292,16 @@ class SearchContentBehavior(Behavior):
         dialog.registerRunnable(runnable)
         pool.start(runnable)
 
-        timer = Qt.QTimer(context.mainWidget())
-        timer.timeout.connect(flushQueue)
-        timer.start(200)
+        with context.macroCommands("Extract found memorymaps"):
+            timer = Qt.QTimer(context.mainWidget())
+            timer.timeout.connect(flushQueue)
+            timer.start(200)
 
-        dialog.exec()
+            dialog.exec()
 
-        timer.stop()
-        flushQueue()
+            timer.stop()
+            flushQueue()
+
         Qt.QGuiApplication.restoreOverrideCursor()
 
         msg = f"{nbFound} potential location was found."

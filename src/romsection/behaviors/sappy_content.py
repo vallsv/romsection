@@ -9,7 +9,7 @@ from ..format_utils import format_address
 from ..model import MemoryMap, ByteCodec, DataType
 from ..parsers import sappy_utils
 from ..widgets.memory_map_list_model import MemoryMapListModel
-from ._utils import splitMemoryMap
+from ..commands.extract_memorymap import ExtractMemoryMapCommand
 from .common import BehaviorAtRomOffset
 from .. import qt_utils
 
@@ -124,12 +124,12 @@ class SplitSappySample(BehaviorAtRomOffset):
         if address is None:
             return
 
-        header = MemoryMap(
+        headerMap = MemoryMap(
             byte_offset=address,
             byte_length=sappy_utils.SAMPLE_HEADER_SIZE,
             data_type=DataType.UNKNOWN,
         )
-        data = rom.extract_data(header)
+        data = rom.extract_raw(headerMap)
 
         with qt_utils.exceptionAsMessageBox(context.mainWidget()):
             header = sappy_utils.SampleHeader.parse(data)
@@ -140,9 +140,9 @@ class SplitSappySample(BehaviorAtRomOffset):
                 byte_codec=ByteCodec.RAW,
                 data_type=DataType.SAMPLE_SAPPY,
             )
-
-            memoryMapList = context.memoryMapList()
-            splitMemoryMap(memoryMapList, mem, sampleMem)
+            command = ExtractMemoryMapCommand()
+            command.setCommand(mem, sampleMem)
+            context.pushCommand(command)
 
 
 class SplitSappySamplePlusOne(SplitSappySample):
@@ -303,31 +303,33 @@ class SearchSappySongHeadersFromSongTable(Behavior):
                 )
             return
 
-        memoryMapList = context.memoryMapList()
         invalid_header = []
         was_extracted = 0
 
-        for _, songHeaders in mems.items():
-            for songHeader in songHeaders:
-                mem = rom.memory_map_containing_offset(songHeader)
-                data = rom.extract_raw(mem)
-                relAddress = songHeader - mem.byte_offset
-                stream = io.BytesIO(data)
-                stream.seek(relAddress, os.SEEK_SET)
-                size = sappy_utils.SongHeader.parse_size(stream)
-                if size is None:
-                    invalid_header.append(songHeader)
-                    continue
+        with context.macroCommands("Extract sappy SongHeader"):
+            for _, songHeaders in mems.items():
+                for songHeader in songHeaders:
+                    mem = rom.memory_map_containing_offset(songHeader)
+                    data = rom.extract_raw(mem)
+                    relAddress = songHeader - mem.byte_offset
+                    stream = io.BytesIO(data)
+                    stream.seek(relAddress, os.SEEK_SET)
+                    size = sappy_utils.SongHeader.parse_size(stream)
+                    if size is None:
+                        invalid_header.append(songHeader)
+                        continue
 
-                newMem = MemoryMap(
-                    byte_offset=songHeader,
-                    byte_length=size,
-                    byte_codec=ByteCodec.RAW,
-                    data_type=DataType.MUSIC_SONG_HEADER_SAPPY,
-                )
+                    newMem = MemoryMap(
+                        byte_offset=songHeader,
+                        byte_length=size,
+                        byte_codec=ByteCodec.RAW,
+                        data_type=DataType.MUSIC_SONG_HEADER_SAPPY,
+                    )
 
-                splitMemoryMap(memoryMapList, mem, newMem)
-                was_extracted += 1
+                    command = ExtractMemoryMapCommand()
+                    command.setCommand(mem, newMem)
+                    context.pushCommand(command)
+                    was_extracted += 1
 
         if was_extracted:
             Qt.QMessageBox.information(
@@ -355,7 +357,7 @@ class SearchSappySongHeadersFromSongTable(Behavior):
 
 class SearchSappyTracksFromSongTable(Behavior):
     """
-    Search and extract SongHeader from SongAddress table.
+    Search and extract music tracks from SongAddress table.
     """
     def run(self):
         context = self.context()
@@ -408,42 +410,44 @@ class SearchSappyTracksFromSongTable(Behavior):
         trackOffsets = [d - 0x8000000 for d in trackOffsets]
         trackOffsets = sorted(list( set(trackOffsets)))
 
-        memoryMapList = context.memoryMapList()
         invalid_description = []
         invalid_content = []
         was_extracted = 0
 
-        for offset in trackOffsets:
-            try:
-                mem = rom.memory_map_containing_offset(offset)
-            except ValueError:
-                print(f"Offset {offset:08X}h not found")
-                continue
-            if mem.byte_offset == offset:
-                if mem.data_type == DataType.MUSIC_TRACK_SAPPY:
+        with context.macroCommands("Extract sappy music tracks"):
+            for offset in trackOffsets:
+                try:
+                    mem = rom.memory_map_containing_offset(offset)
+                except ValueError:
+                    print(f"Offset {offset:08X}h not found")
                     continue
-            if mem.data_type != DataType.UNKNOWN:
-                invalid_description.append(offset)
-                continue
+                if mem.byte_offset == offset:
+                    if mem.data_type == DataType.MUSIC_TRACK_SAPPY:
+                        continue
+                if mem.data_type != DataType.UNKNOWN:
+                    invalid_description.append(offset)
+                    continue
 
-            data = rom.extract_raw(mem)
-            relOffset = offset - mem.byte_offset
-            stream = io.BytesIO(data)
-            stream.seek(relOffset, os.SEEK_SET)
-            size = sappy_utils.Track.parse_size(stream)
-            if size is None:
-                invalid_content.append(offset)
-                continue
+                data = rom.extract_raw(mem)
+                relOffset = offset - mem.byte_offset
+                stream = io.BytesIO(data)
+                stream.seek(relOffset, os.SEEK_SET)
+                size = sappy_utils.Track.parse_size(stream)
+                if size is None:
+                    invalid_content.append(offset)
+                    continue
 
-            newMem = MemoryMap(
-                byte_offset=offset,
-                byte_length=size,
-                byte_codec=ByteCodec.RAW,
-                data_type=DataType.MUSIC_TRACK_SAPPY,
-            )
+                newMem = MemoryMap(
+                    byte_offset=offset,
+                    byte_length=size,
+                    byte_codec=ByteCodec.RAW,
+                    data_type=DataType.MUSIC_TRACK_SAPPY,
+                )
 
-            splitMemoryMap(memoryMapList, mem, newMem)
-            was_extracted += 1
+                command = ExtractMemoryMapCommand()
+                command.setCommand(mem, newMem)
+                context.pushCommand(command)
+                was_extracted += 1
 
         if was_extracted:
             Qt.QMessageBox.information(
@@ -540,30 +544,32 @@ class SearchSappyKeySplitTableFromInstrumentTable(Behavior):
                 )
             return
 
-        memoryMapList = context.memoryMapList()
         invalid_header = []
         was_extracted = 0
 
-        for _, memOffsets in mems.items():
-            for memOffset in memOffsets:
-                mem = rom.memory_map_containing_offset(memOffset)
-                data = rom.extract_raw(mem)
-                relAddress = memOffset - mem.byte_offset
-                stream = io.BytesIO(data)
-                stream.seek(relAddress, os.SEEK_SET)
-                if len(stream.read(128)) != 128:
-                    invalid_header.append(memOffset)
-                    continue
+        with context.macroCommands("Extract sappy key split table"):
+            for _, memOffsets in mems.items():
+                for memOffset in memOffsets:
+                    mem = rom.memory_map_containing_offset(memOffset)
+                    data = rom.extract_raw(mem)
+                    relAddress = memOffset - mem.byte_offset
+                    stream = io.BytesIO(data)
+                    stream.seek(relAddress, os.SEEK_SET)
+                    if len(stream.read(128)) != 128:
+                        invalid_header.append(memOffset)
+                        continue
 
-                newMem = MemoryMap(
-                    byte_offset=memOffset,
-                    byte_length=128,
-                    byte_codec=ByteCodec.RAW,
-                    data_type=DataType.MUSIC_KEY_SPLIT_TABLE_SAPPY,
-                )
+                    newMem = MemoryMap(
+                        byte_offset=memOffset,
+                        byte_length=128,
+                        byte_codec=ByteCodec.RAW,
+                        data_type=DataType.MUSIC_KEY_SPLIT_TABLE_SAPPY,
+                    )
 
-                splitMemoryMap(memoryMapList, mem, newMem)
-                was_extracted += 1
+                    command = ExtractMemoryMapCommand()
+                    command.setCommand(mem, newMem)
+                    context.pushCommand(command)
+                    was_extracted += 1
 
         if was_extracted:
             Qt.QMessageBox.information(
@@ -660,34 +666,36 @@ class SearchSappySampleFromInstrumentTable(Behavior):
                 )
             return
 
-        memoryMapList = context.memoryMapList()
         invalid_header = []
         was_extracted = 0
 
         headerSize = sappy_utils.SAMPLE_HEADER_SIZE
-        for _, memOffsets in mems.items():
-            for memOffset in memOffsets:
-                mem = rom.memory_map_containing_offset(memOffset)
-                data = rom.extract_raw(mem)
-                relAddress = memOffset - mem.byte_offset
-                stream = io.BytesIO(data)
-                stream.seek(relAddress, os.SEEK_SET)
-                headerData = stream.read(headerSize)
-                header = sappy_utils.SampleHeader.parse(headerData)
-                header = sappy_utils.SampleHeader.parse(headerData)
-                if not header.is_valid():
-                    invalid_header.append(memOffset)
-                    continue
+        with context.macroCommands("Extract sappy samples"):
+            for _, memOffsets in mems.items():
+                for memOffset in memOffsets:
+                    mem = rom.memory_map_containing_offset(memOffset)
+                    data = rom.extract_raw(mem)
+                    relAddress = memOffset - mem.byte_offset
+                    stream = io.BytesIO(data)
+                    stream.seek(relAddress, os.SEEK_SET)
+                    headerData = stream.read(headerSize)
+                    header = sappy_utils.SampleHeader.parse(headerData)
+                    header = sappy_utils.SampleHeader.parse(headerData)
+                    if not header.is_valid():
+                        invalid_header.append(memOffset)
+                        continue
 
-                newMem = MemoryMap(
-                    byte_offset=memOffset,
-                    byte_length=16 + header.size + 1,  # Sounds like +1 is mandatory
-                    byte_codec=ByteCodec.RAW,
-                    data_type=DataType.SAMPLE_SAPPY,
-                )
+                    newMem = MemoryMap(
+                        byte_offset=memOffset,
+                        byte_length=16 + header.size + 1,  # Sounds like +1 is mandatory
+                        byte_codec=ByteCodec.RAW,
+                        data_type=DataType.SAMPLE_SAPPY,
+                    )
 
-                splitMemoryMap(memoryMapList, mem, newMem)
-                was_extracted += 1
+                    command = ExtractMemoryMapCommand()
+                    command.setCommand(mem, newMem)
+                    context.pushCommand(command)
+                    was_extracted += 1
 
         if was_extracted:
             Qt.QMessageBox.information(

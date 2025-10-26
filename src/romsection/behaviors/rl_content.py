@@ -12,7 +12,7 @@ from ..model import MemoryMap, ByteCodec, DataType
 from ..parsers import rl
 from .. import qt_utils
 from . import search
-from ._utils import splitMemoryMap
+from ..commands.extract_memorymap import ExtractMemoryMapCommand
 from .common import BehaviorAtRomOffset
 
 
@@ -51,7 +51,7 @@ class SplitRlContent(BehaviorAtRomOffset):
             byte_length=4,
             data_type=DataType.UNKNOWN,
         )
-        header = rom.extract_data(headerMem)
+        header = rom.extract_raw(headerMem)
 
         if header[0] != 0x30:
             Qt.QMessageBox.information(
@@ -61,18 +61,19 @@ class SplitRlContent(BehaviorAtRomOffset):
             )
             return
 
-        dataMem = MemoryMap(
-            byte_codec=ByteCodec.RL,
-            byte_offset=address,
-            data_type=DataType.UNKNOWN,
-        )
-
+        byte_codec = ByteCodec.RL
         with qt_utils.exceptionAsMessageBox(context.mainWidget()):
-            byte_payload = rom.byte_payload(dataMem)
-            dataMem.byte_payload = byte_payload
-
-            memoryMapList = context.memoryMapList()
-            splitMemoryMap(memoryMapList, mem, dataMem)
+            byte_length, byte_payload = rom.check_codec(address, byte_codec)
+            dataMem = MemoryMap(
+                byte_codec=byte_codec,
+                byte_offset=address,
+                byte_length=byte_length,
+                byte_payload=byte_payload,
+                data_type=DataType.UNKNOWN,
+            )
+            command = ExtractMemoryMapCommand()
+            command.setCommand(mem, dataMem)
+            context.pushCommand(command)
 
 
 class SearchRlContent(search.SearchContentBehavior):
@@ -140,7 +141,7 @@ class SearchSimilarRlContent(BehaviorAtRomOffset):
             byte_length=4,
             data_type=DataType.UNKNOWN,
         )
-        header = rom.extract_data(headerMem)
+        header = rom.extract_raw(headerMem)
 
         if header[0] != 0x30:
             Qt.QMessageBox.information(

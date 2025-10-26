@@ -12,7 +12,7 @@ from .behavior import Behavior
 from ..parsers import huffman
 from .common import BehaviorAtRomOffset
 from .. import qt_utils
-from ._utils import splitMemoryMap
+from ..commands.extract_memorymap import ExtractMemoryMapCommand
 
 
 class SplitHuffmanContent(BehaviorAtRomOffset):
@@ -50,7 +50,7 @@ class SplitHuffmanContent(BehaviorAtRomOffset):
             byte_length=4,
             data_type=DataType.UNKNOWN,
         )
-        header = rom.extract_data(headerMem)
+        header = rom.extract_raw(headerMem)
 
         if header[0] not in (0x24, 0x28):
             Qt.QMessageBox.information(
@@ -60,18 +60,19 @@ class SplitHuffmanContent(BehaviorAtRomOffset):
             )
             return
 
-        dataMem = MemoryMap(
-            byte_codec=ByteCodec.HUFFMAN,
-            byte_offset=address,
-            data_type=DataType.UNKNOWN,
-        )
-
+        byte_codec = ByteCodec.HUFFMAN
         with qt_utils.exceptionAsMessageBox(context.mainWidget()):
-            byte_payload = rom.byte_payload(dataMem)
-            dataMem.byte_payload = byte_payload
-
-            memoryMapList = context.memoryMapList()
-            splitMemoryMap(memoryMapList, mem, dataMem)
+            byte_length, byte_payload = rom.check_codec(address, byte_codec)
+            dataMem = MemoryMap(
+                byte_codec=byte_codec,
+                byte_offset=address,
+                byte_length=byte_length,
+                byte_payload=byte_payload,
+                data_type=DataType.UNKNOWN,
+            )
+            command = ExtractMemoryMapCommand()
+            command.setCommand(mem, dataMem)
+            context.pushCommand(command)
 
 
 class SearchHuffmanContent(search.SearchContentBehavior):
@@ -139,7 +140,7 @@ class SearchSimilarHuffmanContent(BehaviorAtRomOffset):
             byte_length=4,
             data_type=DataType.UNKNOWN,
         )
-        header = rom.extract_data(headerMem)
+        header = rom.extract_raw(headerMem)
 
         if header[0] not in (0x24, 0x28):
             Qt.QMessageBox.information(
