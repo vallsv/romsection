@@ -43,6 +43,7 @@ from .behaviors import unknown_content
 from .behaviors.info import InfoDialog
 from .parsers import gba_utils
 from .commands.remove_memorymap import RemoveMemoryMapCommand
+from .commands.insert_memorymap import InsertMemoryMapCommand
 
 
 def uniqueValueElseNone(data: list[typing.Any]):
@@ -434,6 +435,12 @@ class Extractor(Qt.QWidget):
 
             menu.addSeparator()
 
+        if len(mems) > 1:
+            merge = Qt.QAction(menu)
+            merge.setText("Merge contiguous memory map")
+            merge.triggered.connect(self._mergeMemoryMap)
+            menu.addAction(merge)
+
         remove = Qt.QAction(menu)
         remove.setText("Remove memory map")
         remove.triggered.connect(self._removeMemoryMap)
@@ -468,6 +475,62 @@ class Extractor(Qt.QWidget):
                 command = RemoveMemoryMapCommand()
                 command.setCommand(mem)
                 context.pushCommand(command)
+
+    def _mergeMemoryMap(self):
+        """Replace contiguous memory mpa by a new UNKNOWN one"""
+        mems = self._memView.selectedMemoryMaps()
+        if len(mems) == 0:
+            return
+        context = self._context
+
+        if len(mems) == 1:
+            Qt.QMessageBox.information(
+                context.mainWidget(),
+                "Error",
+                "At least 2 contiguous memory map have to be selected"
+            )
+            return
+
+        # Reorder by offset
+        mems = sorted(mems, key=lambda m: m.byte_offset)
+
+        def contiguousRange(mems: list[MemoryMap]) -> tuple[int, int] | None:
+            # At this stage memory maps have to be ordered
+            start = mems[0]
+            startOffset = start.byte_offset
+            endOffset = start.byte_end
+            for m in mems[1:]:
+                if m.byte_offset > endOffset:
+                    return None
+                endOffset = max(endOffset, m.byte_end)
+            return startOffset, endOffset
+
+        offsetRange = contiguousRange(mems)
+        if offsetRange is None:
+            Qt.QMessageBox.information(
+                context.mainWidget(),
+                "Error",
+                "The selected memory maps are not contiguous"
+            )
+            return
+
+        with context.macroCommands("Merge selected memorymap"):
+            index = context.memoryMapList().objectIndex(mems[0]).row()
+            print(index)
+            for mem in reversed(mems):
+                command = RemoveMemoryMapCommand()
+                command.setCommand(mem)
+                context.pushCommand(command)
+
+            newMem = MemoryMap(
+                byte_codec=ByteCodec.RAW,
+                byte_offset=offsetRange[0],
+                byte_length=offsetRange[1] - offsetRange[0],
+                data_type=DataType.UNKNOWN,
+            )
+            command = InsertMemoryMapCommand()
+            command.setCommand(index, newMem)
+            context.pushCommand(command)
 
     def _showMemoryMapRawAsHexa(self):
         mem = self._memView.selectedMemoryMap()
