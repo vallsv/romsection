@@ -1002,7 +1002,8 @@ class Extractor(Qt.QWidget):
             return mem
         if mem.byte_payload is not None:
             return mem
-        rom = self._context.rom()
+        context = self._context
+        rom = context.rom()
         try:
             size, payload = rom.check_codec(mem.byte_offset, mem.byte_codec)
         except Exception:
@@ -1013,7 +1014,7 @@ class Extractor(Qt.QWidget):
             byte_payload=payload,
             byte_length=size,
         )
-        self._context.updateMemoryMap(mem, newMem)
+        context.updateMemoryMap(mem, newMem)
         return newMem
 
     def _updateImage(self):
@@ -1028,7 +1029,10 @@ class Extractor(Qt.QWidget):
             return
         self._displayedMemoryMap = mem
 
-        rom = self._context.rom()
+        context = self._context
+        context._setCurrentMemoryMap(mem)
+
+        rom = context.rom()
         try:
             data_type_name = "" if mem.data_type is None else mem.data_type.name
             if mem.data_type == DataType.GBA_ROM_HEADER:
